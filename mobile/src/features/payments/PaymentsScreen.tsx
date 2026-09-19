@@ -10,7 +10,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { Card } from '@/components/Card';
-import { Button } from '@/components/Button';
 import { Header } from '@/components/Header';
 import { Payment } from '@/types';
 import { MOCK_PAYMENTS } from '@/constants/mockData';

@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { Card } from '@/components/Card';
@@ -27,7 +26,6 @@ const FILTER_TABS: (QuotationStatus | 'ALL')[] = [
 ];
 
 export function QuotationsScreen() {
-  const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<QuotationStatus | 'ALL'>('ALL');
   const [quotations] = useState<Quotation[]>(MOCK_QUOTATIONS);
 

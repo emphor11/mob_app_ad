@@ -9,7 +9,6 @@ import {
   Alert,
   Linking,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { Card } from '@/components/Card';
@@ -28,7 +27,6 @@ const FILTER_TABS: (InvoiceStatus | 'ALL')[] = [
 ];
 
 export function InvoicesScreen() {
-  const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<InvoiceStatus | 'ALL'>('ALL');
   const [invoices] = useState<Invoice[]>(MOCK_INVOICES);
 

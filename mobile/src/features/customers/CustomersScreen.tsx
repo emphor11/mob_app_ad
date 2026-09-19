@@ -13,14 +13,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { Card } from '@/components/Card';
-import { Button } from '@/components/Button';
 import { Header } from '@/components/Header';
 import { Customer } from '@/types';
 import { MOCK_CUSTOMERS } from '@/constants/mockData';
 
 export function CustomersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
+  const [customers] = useState<Customer[]>(MOCK_CUSTOMERS);
 
   const filteredCustomers = customers.filter(
     (c) =>

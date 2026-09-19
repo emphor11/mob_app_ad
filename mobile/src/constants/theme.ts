@@ -1,5 +1,3 @@
-import { Platform } from 'react-native';
-
 export const Colors = {
   light: {
     primary: '#1E40AF',          // Deep corporate blue
