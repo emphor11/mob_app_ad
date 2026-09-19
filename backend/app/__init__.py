@@ -1,0 +1,1 @@
+"""SmartQuote FastAPI Backend Application."""
