@@ -9,7 +9,6 @@ import {
   TextInput,
   RefreshControl,
   ActivityIndicator,
-  Linking,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +26,7 @@ import { PaymentService } from '@/services/payment';
 import { InvoiceService } from '@/services/invoice';
 import { RecordPaymentModal } from '@/features/payments/RecordPaymentModal';
 import { InvoiceDetailModal } from '@/features/invoices/InvoiceDetailModal';
+import { PaymentReminderModal } from '@/features/reminders/PaymentReminderModal';
 
 const FILTER_TABS: { label: string; value: PaymentCategoryFilter }[] = [
   { label: 'All', value: 'ALL' },
@@ -70,6 +70,8 @@ export function PaymentsScreen() {
   const [recordPaymentVisible, setRecordPaymentVisible] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [reminderItem, setReminderItem] = useState<OutstandingInvoiceItem | null>(null);
+  const [reminderModalVisible, setReminderModalVisible] = useState(false);
 
   const loadData = useCallback(
     (filter: PaymentCategoryFilter, search?: string) => {
@@ -126,19 +128,8 @@ export function PaymentsScreen() {
   };
 
   const handleSendReminder = (item: OutstandingInvoiceItem) => {
-    const dueFormatted = formatDisplayDate(item.dueDate);
-    const message = `Hi ${item.customerName}, this is a gentle reminder regarding Invoice ${item.invoiceNumber} with ₹${item.outstandingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })} outstanding (Due: ${dueFormatted}). Please let us know once payment is completed. Thank you!`;
-    const phone = item.customerPhone ? item.customerPhone.replace(/[^0-9]/g, '') : '';
-    const whatsappUrl = phone
-      ? `whatsapp://send?phone=${phone}&text=${encodeURIComponent(message)}`
-      : `whatsapp://send?text=${encodeURIComponent(message)}`;
-
-    Linking.openURL(whatsappUrl).catch(() => {
-      Alert.alert(
-        'Payment Reminder Template',
-        `${message}\n\n(WhatsApp not installed on device)`
-      );
-    });
+    setReminderItem(item);
+    setReminderModalVisible(true);
   };
 
   return (
@@ -392,6 +383,19 @@ export function PaymentsScreen() {
           setSelectedInvoice(null);
         }}
         onUpdated={() => loadData(activeFilter, searchQuery)}
+      />
+
+      {/* Payment Reminder Modal */}
+      <PaymentReminderModal
+        visible={reminderModalVisible}
+        invoice={reminderItem}
+        customerPhone={reminderItem?.customerPhone}
+        customerName={reminderItem?.customerName}
+        onClose={() => {
+          setReminderModalVisible(false);
+          setReminderItem(null);
+        }}
+        onReminderSent={() => loadData(activeFilter, searchQuery)}
       />
     </SafeAreaView>
   );

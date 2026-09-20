@@ -12,8 +12,15 @@ from app.models.invoice import Invoice, InvoiceStatus
 from app.models.payment import Payment
 from app.schemas.invoice import InvoiceResponse, InvoiceUpdate
 from app.schemas.payment import PaymentCreate, PaymentResponse
+from app.schemas.reminder import (
+    DueAlertsResponse,
+    InvoiceReminderCreate,
+    InvoiceReminderResponse,
+    ReminderTemplateResponse,
+)
 from app.services.pdf_generator import generate_invoice_pdf
 from app.services.payment_service import record_invoice_payment
+from app.services.reminder_service import ReminderService
 
 
 router = APIRouter()
@@ -69,6 +76,25 @@ def list_invoices(
         res.customer_name = inv.customer.name if inv.customer else None
         result.append(res)
     return result
+
+
+@router.get(
+    "/reminders/due-alerts",
+    response_model=DueAlertsResponse,
+    summary="Get upcoming due and overdue invoice alerts",
+)
+def get_due_alerts(
+    current_business: Business = Depends(get_current_business),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns automated alerts for invoices:
+    - Due tomorrow (advance notification)
+    - Overdue (urgent reminder)
+    Provides foundational data for automated background notifications.
+    Strictly scoped to current business.
+    """
+    return ReminderService.get_due_alerts(db, current_business.id)
 
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
@@ -249,5 +275,69 @@ def get_invoice_payments(
         res.customer_name = invoice.customer.name if invoice.customer else None
         result.append(res)
     return result
+
+
+@router.get(
+    "/{invoice_id}/reminder-template",
+    response_model=ReminderTemplateResponse,
+    summary="Get pre-formatted reminder text and WhatsApp share link",
+)
+def get_invoice_reminder_template(
+    invoice_id: uuid.UUID,
+    current_business: Business = Depends(get_current_business),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate reminder message variants (Standard, Gentle, Urgent) and pre-filled WhatsApp link
+    for an invoice with an outstanding balance.
+    Strictly scoped to current business.
+    """
+    return ReminderService.get_reminder_template(db, invoice_id, current_business.id)
+
+
+@router.post(
+    "/{invoice_id}/reminders",
+    response_model=InvoiceReminderResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Record sent payment reminder",
+)
+def record_invoice_reminder(
+    invoice_id: uuid.UUID,
+    payload: InvoiceReminderCreate,
+    current_business: Business = Depends(get_current_business),
+    db: Session = Depends(get_db),
+):
+    """
+    Log that a manual reminder was sent to the customer via WhatsApp, SMS, or Share Sheet.
+    Updates the last_reminded_at timestamp on the invoice.
+    Strictly scoped to current business.
+    """
+    return ReminderService.record_reminder(
+        db=db,
+        invoice_id=invoice_id,
+        business_id=current_business.id,
+        reminder_in=payload,
+    )
+
+
+@router.get(
+    "/{invoice_id}/reminders",
+    response_model=List[InvoiceReminderResponse],
+    summary="List reminder audit history for an invoice",
+)
+def get_invoice_reminder_history(
+    invoice_id: uuid.UUID,
+    current_business: Business = Depends(get_current_business),
+    db: Session = Depends(get_db),
+):
+    """
+    List chronological audit history of all payment reminders sent for this invoice.
+    Strictly scoped to current business.
+    """
+    return ReminderService.get_reminder_history(
+        db=db,
+        invoice_id=invoice_id,
+        business_id=current_business.id,
+    )
 
 

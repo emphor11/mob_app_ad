@@ -1,9 +1,9 @@
 import enum
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import String, Text, Date, Numeric, Enum as SQLEnum, ForeignKey
+from sqlalchemy import String, Text, Date, DateTime, Numeric, Enum as SQLEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import UUIDModel
@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.models.customer import Customer
     from app.models.quotation import Quotation
     from app.models.payment import Payment
+    from app.models.reminder import InvoiceReminder
 
 
 class InvoiceStatus(str, enum.Enum):
@@ -117,6 +118,11 @@ class Invoice(UUIDModel):
         nullable=True,
     )
 
+    last_reminded_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     # Relationships
     business: Mapped["Business"] = relationship("Business", back_populates="invoices")
     customer: Mapped["Customer"] = relationship("Customer", back_populates="invoices")
@@ -132,6 +138,12 @@ class Invoice(UUIDModel):
         back_populates="invoice",
         cascade="all, delete-orphan",
         order_by="Payment.payment_date.desc(), Payment.created_at.desc()",
+    )
+    reminders: Mapped[list["InvoiceReminder"]] = relationship(
+        "InvoiceReminder",
+        back_populates="invoice",
+        cascade="all, delete-orphan",
+        order_by="InvoiceReminder.sent_at.desc()",
     )
 
 

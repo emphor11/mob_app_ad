@@ -19,6 +19,7 @@ import { CustomerService } from '@/services/customer';
 import { InvoicePdfService } from '@/services/invoicePdf';
 import { PaymentService } from '@/services/payment';
 import { RecordPaymentModal } from '@/features/payments/RecordPaymentModal';
+import { PaymentReminderModal } from '@/features/reminders/PaymentReminderModal';
 
 interface Props {
   visible: boolean;
@@ -35,6 +36,7 @@ export function InvoiceDetailModal({ visible, invoice, onClose, onUpdated }: Pro
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [recordPaymentVisible, setRecordPaymentVisible] = useState(false);
+  const [reminderModalVisible, setReminderModalVisible] = useState(false);
 
   useEffect(() => {
     if (visible && invoice) {
@@ -77,8 +79,14 @@ export function InvoiceDetailModal({ visible, invoice, onClose, onUpdated }: Pro
     }
   };
 
-  const handleWhatsAppShare = async () => {
-    await InvoicePdfService.shareViaWhatsAppText(invoice, business, customer);
+  const handleWhatsAppShare = () => {
+    setReminderModalVisible(true);
+  };
+
+  const handleReminderSent = () => {
+    InvoiceService.getInvoiceById(invoice.id)
+      .then((updated) => onUpdated(updated))
+      .catch(() => {});
   };
 
   const handleUpdateStatus = async (newStatus: InvoiceStatus) => {
@@ -387,13 +395,36 @@ export function InvoiceDetailModal({ visible, invoice, onClose, onUpdated }: Pro
                 <Text style={styles.sectionHeader}>Invoice Actions</Text>
 
                 {balanceDue > 0 && invoice.status !== 'CANCELLED' && (
-                  <Button
-                    title="Record Payment"
-                    variant="primary"
-                    icon={<Ionicons name="card-outline" size={16} color="#FFFFFF" />}
-                    onPress={() => setRecordPaymentVisible(true)}
-                    style={{ marginBottom: 8 }}
-                  />
+                  <>
+                    <Button
+                      title="Remind Customer"
+                      variant="primary"
+                      icon={<Ionicons name="notifications-outline" size={16} color="#FFFFFF" />}
+                      onPress={() => setReminderModalVisible(true)}
+                      style={{ marginBottom: 8, backgroundColor: '#16A34A' }}
+                    />
+                    <Button
+                      title="Record Payment"
+                      variant="outline"
+                      icon={<Ionicons name="card-outline" size={16} color={Colors.light.primary} />}
+                      onPress={() => setRecordPaymentVisible(true)}
+                      style={{ marginBottom: 8 }}
+                    />
+                  </>
+                )}
+
+                {invoice.lastRemindedAt && (
+                  <View style={styles.remindedBadge}>
+                    <Ionicons name="time-outline" size={14} color="#059669" />
+                    <Text style={styles.remindedBadgeText}>
+                      Last reminder sent: {new Date(invoice.lastRemindedAt).toLocaleString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </Text>
+                  </View>
                 )}
 
                 {invoice.status !== 'CANCELLED' && (
@@ -435,6 +466,16 @@ export function InvoiceDetailModal({ visible, invoice, onClose, onUpdated }: Pro
         invoice={invoice}
         onClose={() => setRecordPaymentVisible(false)}
         onPaymentRecorded={handlePaymentRecorded}
+      />
+
+      {/* Payment Reminder Modal */}
+      <PaymentReminderModal
+        visible={reminderModalVisible}
+        invoice={invoice}
+        customerPhone={customer?.phone}
+        customerName={customer?.name}
+        onClose={() => setReminderModalVisible(false)}
+        onReminderSent={handleReminderSent}
       />
     </>
   );
@@ -826,5 +867,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: Colors.light.danger,
+  },
+  remindedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 8,
+    padding: 10,
+    gap: 6,
+    marginBottom: 10,
+  },
+  remindedBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#065F46',
   },
 });

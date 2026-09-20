@@ -4,6 +4,7 @@ from app.models.customer import Customer
 from app.models.quotation import Quotation, QuotationItem, QuotationStatus
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus
 from app.models.payment import Payment, PaymentMethod
+from app.models.reminder import InvoiceReminder, ReminderChannel
 
 __all__ = [
     "User",
@@ -17,6 +18,8 @@ __all__ = [
     "InvoiceStatus",
     "Payment",
     "PaymentMethod",
+    "InvoiceReminder",
+    "ReminderChannel",
 ]
 
 

@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Linking,
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
@@ -23,6 +22,7 @@ import { Invoice, InvoiceStatus, Payment } from '@/types';
 import { InvoiceService } from '@/services/invoice';
 import { InvoiceDetailModal } from './InvoiceDetailModal';
 import { RecordPaymentModal } from '@/features/payments/RecordPaymentModal';
+import { PaymentReminderModal } from '@/features/reminders/PaymentReminderModal';
 import { MOCK_INVOICES } from '@/constants/mockData';
 
 const FILTER_TABS: (InvoiceStatus | 'ALL')[] = [
@@ -44,6 +44,8 @@ export function InvoicesScreen() {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [invoiceToPay, setInvoiceToPay] = useState<Invoice | null>(null);
   const [recordPaymentVisible, setRecordPaymentVisible] = useState(false);
+  const [reminderInvoice, setReminderInvoice] = useState<Invoice | null>(null);
+  const [reminderModalVisible, setReminderModalVisible] = useState(false);
 
   const loadInvoices = useCallback(
     (filter: InvoiceStatus | 'ALL', search?: string) => {
@@ -107,16 +109,8 @@ export function InvoicesScreen() {
   };
 
   const handleSendReminder = (inv: Invoice) => {
-    const remaining = Math.max(0, inv.total - inv.paidAmount);
-    const message = `Hi ${inv.customerName}, this is a reminder regarding Tax Invoice ${inv.invoiceNumber} for ₹${remaining.toLocaleString('en-IN')}, which is pending. Please let us know once the payment is completed.`;
-    const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
-
-    Linking.openURL(whatsappUrl).catch(() => {
-      Alert.alert(
-        'Payment Reminder Template',
-        `${message}\n\n(WhatsApp not installed, template copied)`
-      );
-    });
+    setReminderInvoice(inv);
+    setReminderModalVisible(true);
   };
 
   return (
@@ -315,6 +309,19 @@ export function InvoicesScreen() {
           setInvoiceToPay(null);
         }}
         onPaymentRecorded={handlePaymentRecorded}
+      />
+
+      {/* Payment Reminder Modal */}
+      <PaymentReminderModal
+        visible={reminderModalVisible}
+        invoice={reminderInvoice}
+        customerPhone={reminderInvoice?.customerId ? undefined : undefined}
+        customerName={reminderInvoice?.customerName}
+        onClose={() => {
+          setReminderModalVisible(false);
+          setReminderInvoice(null);
+        }}
+        onReminderSent={() => loadInvoices(activeFilter, searchQuery)}
       />
     </SafeAreaView>
   );

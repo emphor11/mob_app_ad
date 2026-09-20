@@ -95,7 +95,61 @@ export interface Invoice {
   status: InvoiceStatus;
   notes?: string;
   terms?: string;
+  lastRemindedAt?: string;
   items: InvoiceItem[];
+}
+
+export type ReminderChannel = 'WHATSAPP' | 'SMS' | 'SHARE' | 'EMAIL';
+
+export interface InvoiceReminder {
+  id: string;
+  businessId: string;
+  invoiceId: string;
+  channel: ReminderChannel;
+  recipientName?: string;
+  recipientPhone?: string;
+  message: string;
+  sentAt: string;
+  createdAt: string;
+}
+
+export interface ReminderTemplate {
+  invoiceId: string;
+  customerId: string;
+  customerName: string;
+  customerPhone?: string;
+  invoiceNumber: string;
+  dueDate: string;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  status: InvoiceStatus;
+  standardMessage: string;
+  gentleMessage: string;
+  urgentMessage: string;
+  whatsappUrl?: string;
+}
+
+export interface DueAlertItem {
+  invoiceId: string;
+  invoiceNumber: string;
+  customerId: string;
+  customerName: string;
+  customerPhone?: string;
+  dueDate: string;
+  totalAmount: number;
+  remainingAmount: number;
+  status: InvoiceStatus;
+  alertType: 'DUE_TOMORROW' | 'OVERDUE';
+  daysOffset: number;
+  suggestedMessage: string;
+}
+
+export interface DueAlertsResponse {
+  dueTomorrowCount: number;
+  overdueCount: number;
+  totalAlerts: number;
+  alerts: DueAlertItem[];
 }
 
 export type PaymentMethod = 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'OTHER';
@@ -151,6 +205,7 @@ export interface OutstandingInvoiceItem {
   status: InvoiceStatus;
   isOverdue: boolean;
   paymentCategory: 'PENDING' | 'OVERDUE' | 'PAID';
+  lastRemindedAt?: string;
 }
 
 export interface OutstandingSummary {

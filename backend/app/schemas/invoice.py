@@ -51,6 +51,7 @@ class InvoiceResponse(InvoiceBase):
     quotation_id: Optional[uuid.UUID] = None
     invoice_number: str
     customer_name: Optional[str] = None
+    last_reminded_at: Optional[datetime] = None
     items: List[InvoiceItemResponse] = []
     payments: List[PaymentResponse] = []
     created_at: datetime
