@@ -68,6 +68,12 @@ def convert_quotation_to_invoice(
             detail=f"Only ACCEPTED quotations can be converted to an invoice. Current status is {quotation.status.value}.",
         )
 
+    if quotation.valid_until < date.today():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot convert quotation {quotation.quotation_number} because it expired on {quotation.valid_until}. Please extend the quotation validity before converting.",
+        )
+
     issue_date = custom_issue_date or date.today()
     due_date = issue_date + timedelta(days=due_days)
 

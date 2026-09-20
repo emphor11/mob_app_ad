@@ -3,7 +3,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import String, Text, Date, DateTime, Numeric, Enum as SQLEnum, ForeignKey
+from sqlalchemy import String, Text, Date, DateTime, Numeric, Enum as SQLEnum, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import UUIDModel
@@ -32,6 +32,9 @@ class Invoice(UUIDModel):
     """
 
     __tablename__ = "invoices"
+    __table_args__ = (
+        UniqueConstraint("business_id", "invoice_number", name="uq_business_invoice_number"),
+    )
 
     business_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

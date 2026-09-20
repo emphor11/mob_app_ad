@@ -170,8 +170,11 @@ def update_invoice(
     db: Session = Depends(get_db),
 ):
     """
-    Update invoice status (e.g. CANCELLED, OVERDUE, PAID), due date, notes, or terms.
+    Update invoice status (e.g. CANCELLED, OVERDUE), due date, notes, or terms.
     Strictly scoped to current business.
+    Accounting Invariant:
+    - Paid invoices cannot be modified.
+    - Cancelled invoices cannot be modified.
     """
     stmt = select(Invoice).where(
         Invoice.id == invoice_id,
@@ -182,6 +185,18 @@ def update_invoice(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Invoice not found.",
+        )
+
+    if invoice.status == InvoiceStatus.PAID:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Paid invoices are finalized and cannot be modified. To make adjustments, issue a separate credit note or document.",
+        )
+
+    if invoice.status == InvoiceStatus.CANCELLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cancelled invoices cannot be modified.",
         )
 
     if payload.status is not None:
@@ -202,6 +217,34 @@ def update_invoice(
     res = InvoiceResponse.model_validate(invoice)
     res.customer_name = invoice.customer.name if invoice.customer else None
     return res
+
+
+@router.delete("/{invoice_id}")
+def delete_invoice(
+    invoice_id: uuid.UUID,
+    current_business: Business = Depends(get_current_business),
+    db: Session = Depends(get_db),
+):
+    """
+    Important accounting rule:
+    Don't casually delete financial records. An issued invoice should generally be
+    CANCELLED rather than physically deleted. That preserves the business history.
+    """
+    stmt = select(Invoice).where(
+        Invoice.id == invoice_id,
+        Invoice.business_id == current_business.id,
+    )
+    invoice = db.scalars(stmt).first()
+    if not invoice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invoice not found.",
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Issued invoices cannot be deleted to preserve commercial and tax accounting history. Please update status to CANCELLED instead.",
+    )
 
 
 @router.post(

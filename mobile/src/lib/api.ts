@@ -97,6 +97,13 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // Enhance network / connectivity error messaging
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      error.message = 'Request timed out. Please check your internet connection or try again.';
+    } else if (error.message === 'Network Error' || !error.response) {
+      error.message = 'Unable to connect to SmartQuote server. Please check your internet connection.';
+    }
+
     return Promise.reject(error);
   }
 );
