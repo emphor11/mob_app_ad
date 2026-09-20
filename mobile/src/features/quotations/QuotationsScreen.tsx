@@ -3,6 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
+  TextInput,
   FlatList,
   SafeAreaView,
   TouchableOpacity,
@@ -10,6 +11,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { Card } from '@/components/Card';
 import { Header } from '@/components/Header';
@@ -17,6 +19,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { Quotation, QuotationStatus } from '@/types';
 import { QuotationService } from '@/services/quotation';
 import { CreateQuotationModal } from './CreateQuotationModal';
+import { QuotationDetailModal } from './QuotationDetailModal';
 import { MOCK_QUOTATIONS } from '@/constants/mockData';
 
 const FILTER_TABS: (QuotationStatus | 'ALL')[] = [
@@ -29,32 +32,54 @@ const FILTER_TABS: (QuotationStatus | 'ALL')[] = [
 
 export function QuotationsScreen() {
   const [activeFilter, setActiveFilter] = useState<QuotationStatus | 'ALL'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
 
-  const loadQuotations = useCallback((filter: QuotationStatus | 'ALL') => {
-    QuotationService.getQuotations(filter === 'ALL' ? undefined : filter)
-      .then((data) => {
-        setQuotations(data);
-        setLoading(false);
-        setRefreshing(false);
-      })
-      .catch(() => {
-        setQuotations((prev) => (prev.length === 0 ? MOCK_QUOTATIONS : prev));
-        setLoading(false);
-        setRefreshing(false);
-      });
-  }, []);
+  // Modals
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
 
+  const loadQuotations = useCallback(
+    (filter: QuotationStatus | 'ALL', search?: string) => {
+      QuotationService.getQuotations(filter, search)
+        .then((data) => {
+          setQuotations(data);
+          setLoading(false);
+          setRefreshing(false);
+        })
+        .catch(() => {
+          setQuotations((prev) => (prev.length === 0 ? MOCK_QUOTATIONS : prev));
+          setLoading(false);
+          setRefreshing(false);
+        });
+    },
+    []
+  );
+
+  // Debounced search and filter watcher
   useEffect(() => {
-    loadQuotations(activeFilter);
-  }, [activeFilter, loadQuotations]);
+    const timer = setTimeout(() => {
+      loadQuotations(activeFilter, searchQuery);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [activeFilter, searchQuery, loadQuotations]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadQuotations(activeFilter);
+    loadQuotations(activeFilter, searchQuery);
+  };
+
+  const handleOpenDetail = (quote: Quotation) => {
+    setSelectedQuotation(quote);
+    setDetailModalVisible(true);
+  };
+
+  const handleQuotationUpdated = (updated: Quotation) => {
+    setSelectedQuotation(updated);
+    setQuotations((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
   };
 
   const handleShare = (quoteNumber: string) => {
@@ -78,11 +103,28 @@ export function QuotationsScreen() {
         subtitle={`${quotations.length} total quotations`}
         rightAction={{
           icon: 'add',
-          onPress: () => setModalVisible(true),
+          onPress: () => setCreateModalVisible(true),
         }}
       />
 
       <View style={styles.container}>
+        {/* Search Bar */}
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={18} color={Colors.light.textSecondary} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by quote number (e.g. QT-2026-0012) or client..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor={Colors.light.textMuted}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={18} color={Colors.light.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* Horizontal Filter Tabs */}
         <View style={styles.filterScroll}>
           {FILTER_TABS.map((tab) => (
@@ -121,61 +163,66 @@ export function QuotationsScreen() {
             }
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
+                <Ionicons name="document-text-outline" size={44} color={Colors.light.textMuted} />
                 <Text style={styles.emptyTitle}>No Quotations Found</Text>
                 <Text style={styles.emptySubtitle}>
-                  Tap "+" at the top right to create your first commercial quote.
+                  {searchQuery
+                    ? 'Try searching with a different quote number or client name.'
+                    : 'Tap "+" at the top right to create your first commercial quote.'}
                 </Text>
               </View>
             }
             renderItem={({ item }) => (
-              <Card style={styles.quoteCard}>
-                <View style={styles.cardTop}>
-                  <View>
-                    <Text style={styles.quoteNumber}>{item.quotationNumber}</Text>
-                    <Text style={styles.customerName}>{item.customerName}</Text>
+              <TouchableOpacity activeOpacity={0.8} onPress={() => handleOpenDetail(item)}>
+                <Card style={styles.quoteCard}>
+                  <View style={styles.cardTop}>
+                    <View>
+                      <Text style={styles.quoteNumber}>{item.quotationNumber}</Text>
+                      <Text style={styles.customerName}>{item.customerName}</Text>
+                    </View>
+                    <StatusBadge status={item.status} />
                   </View>
-                  <StatusBadge status={item.status} />
-                </View>
 
-                {item.items && item.items.length > 0 && (
-                  <View style={styles.itemPreview}>
-                    <Text style={styles.itemDescription} numberOfLines={1}>
-                      {item.items[0]?.description} ({item.items[0]?.quantity} qty)
-                    </Text>
-                    {item.items.length > 1 && (
-                      <Text style={styles.extraItems}>
-                        +{item.items.length - 1} more items
+                  {item.items && item.items.length > 0 && (
+                    <View style={styles.itemPreview}>
+                      <Text style={styles.itemDescription} numberOfLines={1}>
+                        {item.items[0]?.description} ({item.items[0]?.quantity} qty)
                       </Text>
-                    )}
-                  </View>
-                )}
-
-                <View style={styles.cardBottom}>
-                  <View>
-                    <Text style={styles.totalLabel}>Total (inc. GST)</Text>
-                    <Text style={styles.totalValue}>
-                      ₹{item.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </Text>
-                  </View>
-
-                  <View style={styles.actionRow}>
-                    <TouchableOpacity
-                      style={styles.actionLink}
-                      onPress={() => handleShare(item.quotationNumber)}>
-                      <Text style={styles.actionLinkText}>Share</Text>
-                    </TouchableOpacity>
-                    {item.status === 'ACCEPTED' && (
-                      <TouchableOpacity
-                        style={[styles.actionLink, styles.convertLink]}
-                        onPress={() => handleConvertToInvoice(item.quotationNumber)}>
-                        <Text style={[styles.actionLinkText, styles.convertLinkText]}>
-                          Convert
+                      {item.items.length > 1 && (
+                        <Text style={styles.extraItems}>
+                          +{item.items.length - 1} more item{item.items.length > 2 ? 's' : ''}
                         </Text>
+                      )}
+                    </View>
+                  )}
+
+                  <View style={styles.cardBottom}>
+                    <View>
+                      <Text style={styles.totalLabel}>Total (inc. GST)</Text>
+                      <Text style={styles.totalValue}>
+                        ₹{item.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </Text>
+                    </View>
+
+                    <View style={styles.actionRow}>
+                      <TouchableOpacity
+                        style={styles.actionLink}
+                        onPress={() => handleShare(item.quotationNumber)}>
+                        <Text style={styles.actionLinkText}>Share</Text>
                       </TouchableOpacity>
-                    )}
+                      {item.status === 'ACCEPTED' && (
+                        <TouchableOpacity
+                          style={[styles.actionLink, styles.convertLink]}
+                          onPress={() => handleConvertToInvoice(item.quotationNumber)}>
+                          <Text style={[styles.actionLinkText, styles.convertLinkText]}>
+                            Convert
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
-                </View>
-              </Card>
+                </Card>
+              </TouchableOpacity>
             )}
           />
         )}
@@ -183,9 +230,17 @@ export function QuotationsScreen() {
 
       {/* Create Quotation Modal */}
       <CreateQuotationModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        onSuccess={() => loadQuotations(activeFilter)}
+        visible={createModalVisible}
+        onClose={() => setCreateModalVisible(false)}
+        onSuccess={() => loadQuotations(activeFilter, searchQuery)}
+      />
+
+      {/* Quotation Detail Modal */}
+      <QuotationDetailModal
+        visible={detailModalVisible}
+        quotation={selectedQuotation}
+        onClose={() => setDetailModalVisible(false)}
+        onUpdated={handleQuotationUpdated}
       />
     </SafeAreaView>
   );
@@ -200,6 +255,21 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 8,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.backgroundElement,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 44,
+    marginBottom: 10,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: Colors.light.text,
   },
   filterScroll: {
     flexDirection: 'row',
@@ -241,12 +311,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: Colors.light.text,
+    marginTop: 10,
   },
   emptySubtitle: {
     fontSize: 13,
     color: Colors.light.textSecondary,
     marginTop: 4,
     textAlign: 'center',
+    maxWidth: 260,
   },
   listContent: {
     paddingBottom: 24,

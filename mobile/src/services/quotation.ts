@@ -18,6 +18,16 @@ export interface CreateQuotationInput {
   items: CreateQuotationItemInput[];
 }
 
+export interface UpdateQuotationInput {
+  status?: QuotationStatus;
+  issue_date?: string;
+  valid_until?: string;
+  discount?: number;
+  notes?: string;
+  terms?: string;
+  items?: CreateQuotationItemInput[];
+}
+
 interface ApiQuotationItem {
   id: string;
   quotation_id: string;
@@ -85,9 +95,16 @@ function mapApiQuotation(q: ApiQuotation): Quotation {
 export const QuotationService = {
   /**
    * Fetch all quotations for the current business.
+   * Supports search (by quote number or customer name) and status filter.
    */
-  async getQuotations(status?: QuotationStatus): Promise<Quotation[]> {
-    const params = status && status !== ('ALL' as unknown) ? { status } : {};
+  async getQuotations(status?: QuotationStatus | 'ALL', search?: string): Promise<Quotation[]> {
+    const params: Record<string, string> = {};
+    if (status && status !== 'ALL') {
+      params.status = status;
+    }
+    if (search && search.trim().length > 0) {
+      params.search = search.trim();
+    }
     const response = await apiClient.get<ApiQuotation[]>('/api/v1/quotations', { params });
     return response.data.map(mapApiQuotation);
   },
@@ -119,6 +136,29 @@ export const QuotationService = {
       })),
     };
     const response = await apiClient.post<ApiQuotation>('/api/v1/quotations', payload);
+    return mapApiQuotation(response.data);
+  },
+
+  /**
+   * Update quotation details or status (e.g. DRAFT -> SENT).
+   */
+  async updateQuotation(id: string, input: UpdateQuotationInput): Promise<Quotation> {
+    const payload: Record<string, unknown> = {};
+    if (input.status) payload.status = input.status;
+    if (input.issue_date) payload.issue_date = input.issue_date;
+    if (input.valid_until) payload.valid_until = input.valid_until;
+    if (input.notes !== undefined) payload.notes = input.notes;
+    if (input.terms !== undefined) payload.terms = input.terms;
+    if (input.discount !== undefined) payload.discount = input.discount.toFixed(2);
+    if (input.items) {
+      payload.items = input.items.map((i) => ({
+        description: i.description,
+        quantity: i.quantity.toFixed(2),
+        unit_price: i.unit_price.toFixed(2),
+        tax_rate: i.tax_rate.toFixed(2),
+      }));
+    }
+    const response = await apiClient.patch<ApiQuotation>(`/api/v1/quotations/${id}`, payload);
     return mapApiQuotation(response.data);
   },
 };
