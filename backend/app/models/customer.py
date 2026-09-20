@@ -7,6 +7,7 @@ from app.db.base import UUIDModel
 
 if TYPE_CHECKING:
     from app.models.business import Business
+    from app.models.quotation import Quotation
 
 
 class Customer(UUIDModel):
@@ -58,3 +59,8 @@ class Customer(UUIDModel):
 
     # Relationships
     business: Mapped["Business"] = relationship("Business", back_populates="customers")
+    quotations: Mapped[list["Quotation"]] = relationship(
+        "Quotation",
+        back_populates="customer",
+    )
+
