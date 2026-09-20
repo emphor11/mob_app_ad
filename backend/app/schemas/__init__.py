@@ -1,5 +1,6 @@
 from app.schemas.user import UserRegister, UserLogin, UserResponse
 from app.schemas.token import TokenResponse, TokenRefresh, AccessTokenResponse
+from app.schemas.business import BusinessCreate, BusinessUpdate, BusinessResponse
 
 __all__ = [
     "UserRegister",
@@ -8,4 +9,7 @@ __all__ = [
     "TokenResponse",
     "TokenRefresh",
     "AccessTokenResponse",
+    "BusinessCreate",
+    "BusinessUpdate",
+    "BusinessResponse",
 ]

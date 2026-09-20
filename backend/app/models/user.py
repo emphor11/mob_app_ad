@@ -1,6 +1,11 @@
+from typing import TYPE_CHECKING
 from sqlalchemy import String, Boolean
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import UUIDModel
+
+if TYPE_CHECKING:
+    from app.models.business import Business
+
 
 
 class User(UUIDModel):
@@ -36,3 +41,11 @@ class User(UUIDModel):
         default=False,
         nullable=False,
     )
+
+    # Relationships
+    businesses: Mapped[list["Business"]] = relationship(
+        "Business",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+

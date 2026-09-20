@@ -8,14 +8,18 @@ export interface User {
 
 export interface Business {
   id: string;
+  userId?: string;
   name: string;
   ownerName: string;
   phone: string;
   email: string;
   address: string;
   gstin?: string;
+  logoUrl?: string;
   currency: string;
+  isDefault?: boolean;
 }
+
 
 export interface Customer {
   id: string;
