@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,18 @@ import {
   ScrollView,
   SafeAreaView,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { Card } from '@/components/Card';
 import { StatusBadge } from '@/components/StatusBadge';
+import { Quotation, Invoice, Business } from '@/types';
+import { BusinessService } from '@/services/business';
+import { QuotationService } from '@/services/quotation';
+import { InvoiceService } from '@/services/invoice';
+import { PaymentService } from '@/services/payment';
 import {
   MOCK_BUSINESS,
   MOCK_METRICS,
@@ -21,15 +27,70 @@ import {
 
 export function DashboardScreen() {
   const router = useRouter();
+  const [business, setBusiness] = useState<Business>(MOCK_BUSINESS);
+  const [quotations, setQuotations] = useState<Quotation[]>(MOCK_QUOTATIONS);
+  const [invoices, setInvoices] = useState<Invoice[]>(MOCK_INVOICES);
+  const [metrics, setMetrics] = useState({
+    totalSales: MOCK_METRICS.totalSales,
+    totalCollected: MOCK_METRICS.totalCollected,
+    outstandingBalance: MOCK_METRICS.outstandingBalance,
+    overdueAmount: MOCK_METRICS.overdueAmount,
+  });
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadDashboardData = useCallback(() => {
+    BusinessService.getMyBusiness()
+      .then((b) => {
+        if (b) setBusiness(b);
+      })
+      .catch(() => {});
+
+    PaymentService.getOutstandingPayments()
+      .then((res) => {
+        setMetrics({
+          totalSales: res.metrics.totalPaid + res.metrics.totalOutstanding,
+          totalCollected: res.metrics.totalPaid,
+          outstandingBalance: res.metrics.totalOutstanding,
+          overdueAmount: res.metrics.totalOverdue,
+        });
+      })
+      .catch(() => {});
+
+    QuotationService.getQuotations()
+      .then((data) => {
+        if (data.length > 0) setQuotations(data);
+      })
+      .catch(() => {});
+
+    InvoiceService.getInvoices()
+      .then((data) => {
+        if (data.length > 0) setInvoices(data);
+        setRefreshing(false);
+      })
+      .catch(() => {
+        setRefreshing(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadDashboardData();
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         {/* Top Business Header */}
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.businessName}>{MOCK_BUSINESS.name}</Text>
-            <Text style={styles.ownerSubtitle}>Welcome back, {MOCK_BUSINESS.ownerName}</Text>
+            <Text style={styles.businessName}>{business.name}</Text>
+            <Text style={styles.ownerSubtitle}>Welcome back, {business.ownerName}</Text>
           </View>
           <TouchableOpacity
             style={styles.profileBtn}
@@ -40,13 +101,16 @@ export function DashboardScreen() {
         </View>
 
         {/* Overdue Alert Banner */}
-        {MOCK_METRICS.overdueAmount > 0 && (
-          <View style={styles.alertBanner}>
+        {metrics.overdueAmount > 0 && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => router.push('/payments')}
+            style={styles.alertBanner}>
             <Ionicons name="alert-circle" size={20} color={Colors.light.danger} />
             <Text style={styles.alertText}>
-              ₹{MOCK_METRICS.overdueAmount.toLocaleString('en-IN')} in invoices is currently overdue.
+              ₹{metrics.overdueAmount.toLocaleString('en-IN')} in invoices is currently overdue. Tap to view.
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
 
         {/* Financial KPI Summary Grid */}
@@ -54,7 +118,7 @@ export function DashboardScreen() {
           <Card style={[styles.kpiCard, styles.kpiCardSales]}>
             <Text style={styles.kpiLabel}>Total Sales</Text>
             <Text style={styles.kpiValue}>
-              ₹{MOCK_METRICS.totalSales.toLocaleString('en-IN')}
+              ₹{metrics.totalSales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </Text>
             <Text style={styles.kpiSub}>All issued invoices</Text>
           </Card>
@@ -62,26 +126,36 @@ export function DashboardScreen() {
           <Card style={[styles.kpiCard, styles.kpiCardCollected]}>
             <Text style={styles.kpiLabel}>Total Collected</Text>
             <Text style={[styles.kpiValue, { color: Colors.light.success }]}>
-              ₹{MOCK_METRICS.totalCollected.toLocaleString('en-IN')}
+              ₹{metrics.totalCollected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </Text>
             <Text style={styles.kpiSub}>Cleared payments</Text>
           </Card>
 
-          <Card style={[styles.kpiCard, styles.kpiCardOutstanding]}>
-            <Text style={styles.kpiLabel}>Outstanding</Text>
-            <Text style={[styles.kpiValue, { color: Colors.light.warning }]}>
-              ₹{MOCK_METRICS.outstandingBalance.toLocaleString('en-IN')}
-            </Text>
-            <Text style={styles.kpiSub}>Pending collection</Text>
-          </Card>
+          <TouchableOpacity
+            style={{ flex: 1, minWidth: '47%' }}
+            activeOpacity={0.8}
+            onPress={() => router.push('/payments')}>
+            <Card style={[styles.kpiCard, styles.kpiCardOutstanding]}>
+              <Text style={styles.kpiLabel}>Outstanding</Text>
+              <Text style={[styles.kpiValue, { color: Colors.light.warning }]}>
+                ₹{metrics.outstandingBalance.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </Text>
+              <Text style={styles.kpiSub}>Pending collection →</Text>
+            </Card>
+          </TouchableOpacity>
 
-          <Card style={[styles.kpiCard, styles.kpiCardOverdue]}>
-            <Text style={styles.kpiLabel}>Overdue</Text>
-            <Text style={[styles.kpiValue, { color: Colors.light.danger }]}>
-              ₹{MOCK_METRICS.overdueAmount.toLocaleString('en-IN')}
-            </Text>
-            <Text style={styles.kpiSub}>Action required</Text>
-          </Card>
+          <TouchableOpacity
+            style={{ flex: 1, minWidth: '47%' }}
+            activeOpacity={0.8}
+            onPress={() => router.push('/payments')}>
+            <Card style={[styles.kpiCard, styles.kpiCardOverdue]}>
+              <Text style={styles.kpiLabel}>Overdue</Text>
+              <Text style={[styles.kpiValue, { color: Colors.light.danger }]}>
+                ₹{metrics.overdueAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </Text>
+              <Text style={styles.kpiSub}>Action required →</Text>
+            </Card>
+          </TouchableOpacity>
         </View>
 
         {/* Quick Action Shortcuts */}
@@ -136,7 +210,7 @@ export function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {MOCK_QUOTATIONS.slice(0, 2).map((quote) => (
+        {quotations.slice(0, 2).map((quote) => (
           <Card key={quote.id} style={styles.itemCard}>
             <View style={styles.itemCardHeader}>
               <Text style={styles.itemNumber}>{quote.quotationNumber}</Text>
@@ -145,7 +219,9 @@ export function DashboardScreen() {
             <Text style={styles.customerName}>{quote.customerName}</Text>
             <View style={styles.itemCardFooter}>
               <Text style={styles.itemDate}>Valid till: {quote.validUntil}</Text>
-              <Text style={styles.itemAmount}>₹{quote.total.toLocaleString('en-IN')}</Text>
+              <Text style={styles.itemAmount}>
+                ₹{quote.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
             </View>
           </Card>
         ))}
@@ -158,7 +234,7 @@ export function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {MOCK_INVOICES.slice(0, 2).map((inv) => (
+        {invoices.slice(0, 2).map((inv) => (
           <Card key={inv.id} style={styles.itemCard}>
             <View style={styles.itemCardHeader}>
               <Text style={styles.itemNumber}>{inv.invoiceNumber}</Text>
@@ -168,10 +244,12 @@ export function DashboardScreen() {
             <View style={styles.itemCardFooter}>
               <Text style={styles.itemDate}>Due: {inv.dueDate}</Text>
               <View style={styles.amountCol}>
-                <Text style={styles.itemAmount}>₹{inv.total.toLocaleString('en-IN')}</Text>
+                <Text style={styles.itemAmount}>
+                  ₹{inv.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </Text>
                 {inv.paidAmount < inv.total && (
                   <Text style={styles.pendingAmount}>
-                    Pending: ₹{(inv.total - inv.paidAmount).toLocaleString('en-IN')}
+                    Pending: ₹{(inv.total - inv.paidAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </Text>
                 )}
               </View>
@@ -201,7 +279,7 @@ const styles = StyleSheet.create({
   },
   businessName: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.light.text,
   },
   ownerSubtitle: {
@@ -210,53 +288,58 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   profileBtn: {
-    padding: 4,
+    padding: 2,
   },
   alertBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.dangerBg,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 16,
+    backgroundColor: '#FEF2F2',
     borderWidth: 1,
     borderColor: '#FECACA',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 16,
   },
   alertText: {
     fontSize: 13,
     color: Colors.light.danger,
-    marginLeft: 8,
     fontWeight: '600',
+    marginLeft: 8,
     flex: 1,
   },
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 20,
   },
   kpiCard: {
-    width: '48%',
+    flex: 1,
+    minWidth: '47%',
     padding: 14,
-    marginVertical: 4,
   },
-  kpiCardSales: {},
-  kpiCardCollected: {},
-  kpiCardOutstanding: {},
-  kpiCardOverdue: {},
+  kpiCardSales: {
+    backgroundColor: Colors.light.card,
+  },
+  kpiCardCollected: {
+    backgroundColor: Colors.light.card,
+  },
+  kpiCardOutstanding: {
+    backgroundColor: Colors.light.card,
+  },
+  kpiCardOverdue: {
+    backgroundColor: Colors.light.card,
+  },
   kpiLabel: {
     fontSize: 12,
     fontWeight: '600',
     color: Colors.light.textSecondary,
-    textTransform: 'uppercase',
   },
   kpiValue: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: Colors.light.text,
-    marginTop: 6,
-    marginBottom: 2,
+    marginVertical: 4,
   },
   kpiSub: {
     fontSize: 11,
@@ -266,45 +349,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: Colors.light.text,
-    marginVertical: 10,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 14,
-    marginBottom: 6,
-  },
-  viewAllText: {
-    fontSize: 13,
-    color: Colors.light.primary,
-    fontWeight: '600',
+    marginBottom: 12,
   },
   quickActionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 20,
   },
   quickActionBtn: {
     alignItems: 'center',
-    width: '23%',
+    flex: 1,
   },
   actionIconBg: {
-    width: 52,
-    height: 52,
+    width: 48,
+    height: 48,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 6,
   },
   actionText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: Colors.light.textSecondary,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    marginTop: 6,
+  },
+  viewAllText: {
+    fontSize: 13,
+    color: Colors.light.primary,
+    fontWeight: '600',
   },
   itemCard: {
     padding: 14,
-    marginVertical: 5,
+    marginBottom: 10,
   },
   itemCardHeader: {
     flexDirection: 'row',
@@ -313,7 +396,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   itemNumber: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: Colors.light.primary,
   },
@@ -333,20 +416,20 @@ const styles = StyleSheet.create({
   },
   itemDate: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
+    color: Colors.light.textMuted,
   },
   amountCol: {
     alignItems: 'flex-end',
   },
   itemAmount: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: Colors.light.text,
   },
   pendingAmount: {
     fontSize: 11,
+    fontWeight: '700',
     color: Colors.light.danger,
-    fontWeight: '600',
     marginTop: 2,
   },
 });

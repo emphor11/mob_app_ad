@@ -121,3 +121,40 @@ export interface DashboardMetrics {
   pendingInvoicesCount: number;
   customersCount: number;
 }
+
+export type PaymentCategoryFilter = 'ALL' | 'PENDING' | 'OVERDUE' | 'PAID';
+
+export interface OutstandingMetrics {
+  totalOutstanding: number;
+  totalOverdue: number;
+  totalPartiallyPaid: number;
+  totalPaid: number;
+  outstandingCount: number;
+  overdueCount: number;
+  partiallyPaidCount: number;
+  paidCount: number;
+}
+
+export interface OutstandingInvoiceItem {
+  id: string;
+  invoiceNumber: string;
+  customerId: string;
+  customerName: string;
+  customerPhone?: string;
+  issueDate: string;
+  dueDate: string;
+  subtotal: number;
+  tax: number;
+  total: number;
+  paidAmount: number;
+  outstandingBalance: number;
+  status: InvoiceStatus;
+  isOverdue: boolean;
+  paymentCategory: 'PENDING' | 'OVERDUE' | 'PAID';
+}
+
+export interface OutstandingSummary {
+  metrics: OutstandingMetrics;
+  items: OutstandingInvoiceItem[];
+}
+

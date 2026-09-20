@@ -1,5 +1,13 @@
 import { apiClient } from '@/lib/api';
-import { Payment, PaymentMethod } from '@/types';
+import {
+  Payment,
+  PaymentMethod,
+  PaymentCategoryFilter,
+  OutstandingSummary,
+  OutstandingMetrics,
+  OutstandingInvoiceItem,
+  InvoiceStatus,
+} from '@/types';
 
 export interface RecordPaymentInput {
   amount: number;
@@ -24,6 +32,40 @@ interface ApiPayment {
   updated_at: string;
 }
 
+interface ApiOutstandingMetrics {
+  total_outstanding: string | number;
+  total_overdue: string | number;
+  total_partially_paid: string | number;
+  total_paid: string | number;
+  outstanding_count: number;
+  overdue_count: number;
+  partially_paid_count: number;
+  paid_count: number;
+}
+
+interface ApiOutstandingInvoiceItem {
+  id: string;
+  invoice_number: string;
+  customer_id: string;
+  customer_name: string;
+  customer_phone?: string | null;
+  issue_date: string;
+  due_date: string;
+  subtotal: string | number;
+  tax: string | number;
+  total: string | number;
+  paid_amount: string | number;
+  outstanding_balance: string | number;
+  status: InvoiceStatus;
+  is_overdue: boolean;
+  payment_category: 'PENDING' | 'OVERDUE' | 'PAID';
+}
+
+interface ApiOutstandingSummary {
+  metrics: ApiOutstandingMetrics;
+  items: ApiOutstandingInvoiceItem[];
+}
+
 function mapApiPayment(p: ApiPayment): Payment {
   return {
     id: p.id,
@@ -35,6 +77,39 @@ function mapApiPayment(p: ApiPayment): Payment {
     method: p.method,
     reference: p.reference ?? undefined,
     notes: p.notes ?? undefined,
+  };
+}
+
+function mapOutstandingMetrics(m: ApiOutstandingMetrics): OutstandingMetrics {
+  return {
+    totalOutstanding: Number(m.total_outstanding),
+    totalOverdue: Number(m.total_overdue),
+    totalPartiallyPaid: Number(m.total_partially_paid),
+    totalPaid: Number(m.total_paid),
+    outstandingCount: m.outstanding_count,
+    overdueCount: m.overdue_count,
+    partiallyPaidCount: m.partially_paid_count,
+    paidCount: m.paid_count,
+  };
+}
+
+function mapOutstandingItem(item: ApiOutstandingInvoiceItem): OutstandingInvoiceItem {
+  return {
+    id: item.id,
+    invoiceNumber: item.invoice_number,
+    customerId: item.customer_id,
+    customerName: item.customer_name,
+    customerPhone: item.customer_phone ?? undefined,
+    issueDate: item.issue_date,
+    dueDate: item.due_date,
+    subtotal: Number(item.subtotal),
+    tax: Number(item.tax),
+    total: Number(item.total),
+    paidAmount: Number(item.paid_amount),
+    outstandingBalance: Number(item.outstanding_balance),
+    status: item.status,
+    isOverdue: item.is_overdue,
+    paymentCategory: item.payment_category,
   };
 }
 
@@ -78,5 +153,30 @@ export const PaymentService = {
     }
     const response = await apiClient.get<ApiPayment[]>('/api/v1/payments', { params });
     return response.data.map(mapApiPayment);
+  },
+
+  /**
+   * Fetch outstanding payment summary metrics and categorized invoice items.
+   * Categorizes dynamically into PENDING, OVERDUE, and PAID.
+   */
+  async getOutstandingPayments(
+    filter?: PaymentCategoryFilter,
+    search?: string
+  ): Promise<OutstandingSummary> {
+    const params: Record<string, string> = {};
+    if (filter && filter !== 'ALL') {
+      params.filter = filter;
+    }
+    if (search && search.trim().length > 0) {
+      params.search = search.trim();
+    }
+    const response = await apiClient.get<ApiOutstandingSummary>(
+      '/api/v1/payments/outstanding',
+      { params }
+    );
+    return {
+      metrics: mapOutstandingMetrics(response.data.metrics),
+      items: (response.data.items || []).map(mapOutstandingItem),
+    };
   },
 };
