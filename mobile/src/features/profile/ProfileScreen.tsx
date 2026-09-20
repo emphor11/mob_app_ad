@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -15,9 +15,21 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Header } from '@/components/Header';
 import { MOCK_BUSINESS } from '@/constants/mockData';
+import { AuthService } from '@/services/auth';
+import { StorageService } from '@/lib/storage';
+import { User } from '@/types';
 
 export function ProfileScreen() {
   const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    StorageService.getUser().then((user) => {
+      if (user) {
+        setCurrentUser(user);
+      }
+    });
+  }, []);
 
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -25,10 +37,16 @@ export function ProfileScreen() {
       {
         text: 'Sign Out',
         style: 'destructive',
-        onPress: () => router.replace('/(auth)/welcome'),
+        onPress: async () => {
+          await AuthService.logout();
+          router.replace('/(auth)/welcome');
+        },
       },
     ]);
   };
+
+  const displayName = currentUser ? currentUser.fullName : MOCK_BUSINESS.ownerName;
+  const displayEmail = currentUser ? currentUser.email : MOCK_BUSINESS.email;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -43,7 +61,7 @@ export function ProfileScreen() {
             </View>
             <View style={styles.businessInfo}>
               <Text style={styles.businessName}>{MOCK_BUSINESS.name}</Text>
-              <Text style={styles.ownerName}>Prop: {MOCK_BUSINESS.ownerName}</Text>
+              <Text style={styles.ownerName}>Prop: {displayName}</Text>
               {MOCK_BUSINESS.gstin && (
                 <View style={styles.gstinBadge}>
                   <Text style={styles.gstinText}>GSTIN: {MOCK_BUSINESS.gstin}</Text>
@@ -59,7 +77,7 @@ export function ProfileScreen() {
             </View>
             <View style={styles.detailRow}>
               <Ionicons name="mail-outline" size={16} color={Colors.light.textSecondary} />
-              <Text style={styles.detailText}>{MOCK_BUSINESS.email}</Text>
+              <Text style={styles.detailText}>{displayEmail}</Text>
             </View>
             <View style={styles.detailRow}>
               <Ionicons name="location-outline" size={16} color={Colors.light.textSecondary} />
@@ -135,11 +153,11 @@ export function ProfileScreen() {
         <Card style={styles.settingsCard}>
           <View style={styles.versionRow}>
             <Text style={styles.versionLabel}>SmartQuote Version</Text>
-            <Text style={styles.versionValue}>1.0.0 (Phase 3 Shell)</Text>
+            <Text style={styles.versionValue}>1.0.0 (Phase 7 Auth)</Text>
           </View>
           <View style={styles.versionRow}>
-            <Text style={styles.versionLabel}>Architecture</Text>
-            <Text style={styles.versionValue}>React Native + Expo Router</Text>
+            <Text style={styles.versionLabel}>Active Session</Text>
+            <Text style={styles.versionValue}>{currentUser ? 'Authenticated (JWT)' : 'Guest Demo'}</Text>
           </View>
           <Button
             title="Sign Out"

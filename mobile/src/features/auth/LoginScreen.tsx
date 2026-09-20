@@ -9,11 +9,13 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { Button } from '@/components/Button';
 import { Header } from '@/components/Header';
+import { AuthService } from '@/services/auth';
 
 export function LoginScreen() {
   const router = useRouter();
@@ -21,12 +23,29 @@ export function LoginScreen() {
   const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Validation Error', 'Please provide both email address and password.');
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await AuthService.login({ email: email.trim(), password: password.trim() });
       router.replace('/(tabs)/dashboard');
-    }, 600);
+    } catch (err: any) {
+      const serverMessage =
+        err?.response?.data?.detail ||
+        err?.message ||
+        'Unable to connect to backend server. Ensure backend is running.';
+      Alert.alert('Sign In Failed', serverMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoBypass = () => {
+    router.replace('/(tabs)/dashboard');
   };
 
   return (
@@ -75,6 +94,14 @@ export function LoginScreen() {
               loading={loading}
               onPress={handleLogin}
               style={styles.submitBtn}
+            />
+
+            <Button
+              title="Explore as Demo Guest"
+              variant="secondary"
+              size="medium"
+              onPress={handleDemoBypass}
+              style={styles.demoBtn}
             />
 
             <View style={styles.footerRow}>
@@ -151,6 +178,9 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: 4,
+  },
+  demoBtn: {
+    marginTop: 10,
   },
   footerRow: {
     flexDirection: 'row',

@@ -9,11 +9,13 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { Button } from '@/components/Button';
 import { Header } from '@/components/Header';
+import { AuthService } from '@/services/auth';
 
 export function RegisterScreen() {
   const router = useRouter();
@@ -24,12 +26,34 @@ export function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
+    if (!fullName.trim() || !email.trim() || !password.trim()) {
+      Alert.alert('Validation Error', 'Full name, email, and password (minimum 8 chars) are required.');
+      return;
+    }
+    if (password.length < 8) {
+      Alert.alert('Validation Error', 'Password must be at least 8 characters long.');
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await AuthService.register({
+        email: email.trim(),
+        password: password.trim(),
+        fullName: fullName.trim(),
+        businessName: businessName.trim() || undefined,
+      });
       router.replace('/(tabs)/dashboard');
-    }, 600);
+    } catch (err: any) {
+      const serverMessage =
+        err?.response?.data?.detail ||
+        err?.message ||
+        'Unable to connect to backend server. Please verify backend is running.';
+      Alert.alert('Registration Failed', serverMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -46,7 +70,7 @@ export function RegisterScreen() {
 
           <View style={styles.form}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Full Name</Text>
+              <Text style={styles.label}>Full Name *</Text>
               <TextInput
                 style={styles.input}
                 placeholder="e.g. Vikram Sharma"
@@ -77,7 +101,7 @@ export function RegisterScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email Address</Text>
+              <Text style={styles.label}>Email Address *</Text>
               <TextInput
                 style={styles.input}
                 placeholder="name@business.com"
@@ -89,10 +113,10 @@ export function RegisterScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>Password (min. 8 characters) *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Minimum 8 characters"
+                placeholder="••••••••"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
