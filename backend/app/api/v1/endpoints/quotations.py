@@ -192,16 +192,46 @@ def update_quotation(
             detail="Quotation not found.",
         )
 
+    if payload.status is not None and payload.status != quotation.status:
+        # Validate status transitions
+        # Terminal state: CONVERTED cannot be changed back to quote statuses
+        if quotation.status == QuotationStatus.CONVERTED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Quotation has already been converted to an invoice and its status cannot be changed.",
+            )
+
+        valid_transitions = {
+            QuotationStatus.DRAFT: {QuotationStatus.SENT, QuotationStatus.EXPIRED},
+            QuotationStatus.SENT: {
+                QuotationStatus.ACCEPTED,
+                QuotationStatus.REJECTED,
+                QuotationStatus.EXPIRED,
+                QuotationStatus.DRAFT,
+            },
+            QuotationStatus.ACCEPTED: {QuotationStatus.SENT, QuotationStatus.CONVERTED},
+            QuotationStatus.REJECTED: {QuotationStatus.DRAFT, QuotationStatus.SENT},
+            QuotationStatus.EXPIRED: {QuotationStatus.DRAFT, QuotationStatus.SENT},
+        }
+
+        allowed = valid_transitions.get(quotation.status, set())
+        if payload.status not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot transition quotation status from {quotation.status.value} to {payload.status.value}.",
+            )
+
+        quotation.status = payload.status
+
     if payload.issue_date is not None:
         quotation.issue_date = payload.issue_date
     if payload.valid_until is not None:
         quotation.valid_until = payload.valid_until
-    if payload.status is not None:
-        quotation.status = payload.status
     if payload.notes is not None:
         quotation.notes = payload.notes.strip() if payload.notes else None
     if payload.terms is not None:
         quotation.terms = payload.terms.strip() if payload.terms else None
+
 
     # Handle discount and items recalculation
     recalc_needed = False

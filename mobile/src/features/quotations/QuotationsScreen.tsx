@@ -28,7 +28,9 @@ const FILTER_TABS: (QuotationStatus | 'ALL')[] = [
   'SENT',
   'ACCEPTED',
   'REJECTED',
+  'EXPIRED',
 ];
+
 
 export function QuotationsScreen() {
   const [activeFilter, setActiveFilter] = useState<QuotationStatus | 'ALL'>('ALL');
@@ -82,12 +84,11 @@ export function QuotationsScreen() {
     setQuotations((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
   };
 
-  const handleShare = (quoteNumber: string) => {
-    Alert.alert(
-      'Share Quotation',
-      `PDF generation & native share sheet for ${quoteNumber} will be integrated in Phase 13/14.`
-    );
+  const handleShare = (quote: Quotation) => {
+    setSelectedQuotation(quote);
+    setDetailModalVisible(true);
   };
+
 
   const handleConvertToInvoice = (quoteNumber: string) => {
     Alert.alert(
@@ -207,9 +208,10 @@ export function QuotationsScreen() {
                     <View style={styles.actionRow}>
                       <TouchableOpacity
                         style={styles.actionLink}
-                        onPress={() => handleShare(item.quotationNumber)}>
+                        onPress={() => handleShare(item)}>
                         <Text style={styles.actionLinkText}>Share</Text>
                       </TouchableOpacity>
+
                       {item.status === 'ACCEPTED' && (
                         <TouchableOpacity
                           style={[styles.actionLink, styles.convertLink]}

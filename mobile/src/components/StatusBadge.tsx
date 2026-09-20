@@ -31,12 +31,19 @@ export function StatusBadge({ status }: StatusBadgeProps) {
           text: Colors.light.danger,
           label: status === 'OVERDUE' ? 'Overdue' : 'Rejected',
         };
+      case 'EXPIRED':
+        return {
+          bg: '#F3E8FF',
+          text: '#7E22CE',
+          label: 'Expired',
+        };
       case 'DRAFT':
         return {
           bg: Colors.light.neutralBg,
           text: Colors.light.neutral,
           label: 'Draft',
         };
+
       case 'UNPAID':
         return {
           bg: Colors.light.dangerBg,

@@ -79,7 +79,7 @@ export function QuotationDetailModal({ visible, quotation, onClose, onUpdated }:
       const updated = await QuotationService.updateQuotation(quotation.id, {
         status: newStatus,
       });
-      Alert.alert('Status Updated', `Quotation marked as ${newStatus}.`);
+      Alert.alert('Status Updated', `Quotation status updated to ${newStatus}.`);
       onUpdated(updated);
     } catch {
       Alert.alert('Error', 'Failed to update quotation status.');
@@ -87,6 +87,29 @@ export function QuotationDetailModal({ visible, quotation, onClose, onUpdated }:
       setUpdating(false);
     }
   };
+
+  const confirmMarkRejected = () => {
+    Alert.alert(
+      'Mark as Rejected',
+      'Are you sure the client has declined this quotation?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Yes, Mark Rejected', style: 'destructive', onPress: () => handleUpdateStatus('REJECTED') },
+      ]
+    );
+  };
+
+  const confirmMarkExpired = () => {
+    Alert.alert(
+      'Mark as Expired',
+      'Mark this quotation as expired due to exceeded validity period?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Yes, Mark Expired', onPress: () => handleUpdateStatus('EXPIRED') },
+      ]
+    );
+  };
+
 
 
   return (
@@ -245,39 +268,110 @@ export function QuotationDetailModal({ visible, quotation, onClose, onUpdated }:
 
             {/* Status Transition Action Buttons */}
             <View style={styles.actionSection}>
-              <Text style={styles.sectionHeader}>Workflow Actions</Text>
-              {quotation.status === 'DRAFT' && (
-                <Button
-                  title="Mark as Sent to Client"
-                  variant="outline"
-                  loading={updating}
-                  icon={<Ionicons name="paper-plane-outline" size={16} color={Colors.light.primary} />}
-                  onPress={() => handleUpdateStatus('SENT')}
-                  style={{ marginBottom: 8 }}
-                />
-              )}
+              <Text style={styles.sectionHeader}>Quotation Lifecycle</Text>
 
-              {quotation.status === 'SENT' && (
-                <View style={styles.buttonRow}>
+              {quotation.status === 'DRAFT' && (
+                <View style={{ gap: 8 }}>
                   <Button
-                    title="Mark Accepted"
+                    title="Mark as Sent to Client"
                     variant="primary"
                     loading={updating}
-                    icon={<Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" />}
-                    onPress={() => handleUpdateStatus('ACCEPTED')}
-                    style={{ flex: 1 }}
+                    icon={<Ionicons name="paper-plane-outline" size={16} color="#FFFFFF" />}
+                    onPress={() => handleUpdateStatus('SENT')}
                   />
                   <Button
-                    title="Mark Rejected"
-                    variant="danger"
+                    title="Mark Expired"
+                    variant="outline"
                     loading={updating}
-                    icon={<Ionicons name="close-circle-outline" size={16} color="#FFFFFF" />}
-                    onPress={() => handleUpdateStatus('REJECTED')}
-                    style={{ flex: 1 }}
+                    icon={<Ionicons name="timer-outline" size={16} color={Colors.light.textSecondary} />}
+                    onPress={confirmMarkExpired}
                   />
                 </View>
               )}
+
+              {quotation.status === 'SENT' && (
+                <View style={{ gap: 8 }}>
+                  <Button
+                    title="Mark Accepted (Deal Won)"
+                    variant="primary"
+                    loading={updating}
+                    icon={<Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />}
+                    onPress={() => handleUpdateStatus('ACCEPTED')}
+                  />
+                  <View style={styles.buttonRow}>
+                    <Button
+                      title="Mark Rejected"
+                      variant="danger"
+                      loading={updating}
+                      icon={<Ionicons name="close-circle-outline" size={16} color="#FFFFFF" />}
+                      onPress={confirmMarkRejected}
+                      style={{ flex: 1 }}
+                    />
+                    <Button
+                      title="Mark Expired"
+                      variant="outline"
+                      loading={updating}
+                      icon={<Ionicons name="timer-outline" size={16} color={Colors.light.textSecondary} />}
+                      onPress={confirmMarkExpired}
+                      style={{ flex: 1 }}
+                    />
+                  </View>
+                </View>
+              )}
+
+              {quotation.status === 'ACCEPTED' && (
+                <View style={styles.acceptedBanner}>
+                  <Ionicons name="checkmark-done-circle" size={24} color={Colors.light.success} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.acceptedBannerTitle}>Quotation Accepted</Text>
+                    <Text style={styles.acceptedBannerText}>
+                      Client accepted this quotation. Ready to be converted into an active tax invoice.
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleUpdateStatus('SENT')}
+                    style={styles.revertButton}
+                  >
+                    <Text style={styles.revertButtonText}>Undo</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {(quotation.status === 'REJECTED' || quotation.status === 'EXPIRED') && (
+                <View style={{ gap: 8 }}>
+                  <View style={styles.closedBanner}>
+                    <Ionicons
+                      name={quotation.status === 'REJECTED' ? 'close-circle' : 'time-outline'}
+                      size={20}
+                      color={quotation.status === 'REJECTED' ? Colors.light.danger : '#7E22CE'}
+                    />
+                    <Text style={styles.closedBannerText}>
+                      Quotation is currently marked as {quotation.status.toLowerCase()}.
+                    </Text>
+                  </View>
+                  <Button
+                    title="Reopen Quotation (Resume Negotiations)"
+                    variant="outline"
+                    loading={updating}
+                    icon={<Ionicons name="refresh-outline" size={16} color={Colors.light.primary} />}
+                    onPress={() => handleUpdateStatus('SENT')}
+                  />
+                </View>
+              )}
+
+              {quotation.status === 'CONVERTED' && (
+                <View style={[styles.acceptedBanner, { backgroundColor: Colors.light.infoBg, borderColor: '#BFDBFE' }]}>
+                  <Ionicons name="documents-outline" size={24} color={Colors.light.info} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.acceptedBannerTitle, { color: Colors.light.info }]}>Converted to Invoice</Text>
+                    <Text style={styles.acceptedBannerText}>
+                      This quotation has been converted into an official tax invoice.
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
+
           </ScrollView>
 
         </View>
@@ -502,5 +596,55 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  acceptedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: Colors.light.successBg,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 10,
+    padding: 14,
+  },
+  acceptedBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.light.success,
+  },
+  acceptedBannerText: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  revertButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  revertButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+  closedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    padding: 10,
+  },
+  closedBannerText: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    fontWeight: '500',
+  },
 });
+
 
