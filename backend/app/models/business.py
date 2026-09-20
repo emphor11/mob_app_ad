@@ -7,6 +7,8 @@ from app.db.base import UUIDModel
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.customer import Customer
+
 
 
 class Business(UUIDModel):
@@ -74,3 +76,9 @@ class Business(UUIDModel):
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="businesses")
+    customers: Mapped[list["Customer"]] = relationship(
+        "Customer",
+        back_populates="business",
+        cascade="all, delete-orphan",
+    )
+
