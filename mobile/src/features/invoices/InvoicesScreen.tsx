@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   FlatList,
   SafeAreaView,
   TouchableOpacity,
+  TextInput,
   Alert,
   Linking,
   RefreshControl,
@@ -20,6 +21,7 @@ import { Header } from '@/components/Header';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Invoice, InvoiceStatus } from '@/types';
 import { InvoiceService } from '@/services/invoice';
+import { InvoiceDetailModal } from './InvoiceDetailModal';
 import { MOCK_INVOICES } from '@/constants/mockData';
 
 const FILTER_TABS: (InvoiceStatus | 'ALL')[] = [
@@ -28,54 +30,68 @@ const FILTER_TABS: (InvoiceStatus | 'ALL')[] = [
   'PARTIALLY_PAID',
   'PAID',
   'OVERDUE',
+  'CANCELLED',
 ];
 
 export function InvoicesScreen() {
   const [activeFilter, setActiveFilter] = useState<InvoiceStatus | 'ALL'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
 
-  const loadInvoices = React.useCallback((filter: InvoiceStatus | 'ALL') => {
-    InvoiceService.getInvoices(filter)
-      .then((data) => {
-        setInvoices(data);
-        setLoading(false);
-        setRefreshing(false);
-      })
-      .catch(() => {
-        setInvoices((prev) => (prev.length === 0 ? MOCK_INVOICES : prev));
-        setLoading(false);
-        setRefreshing(false);
-      });
-  }, []);
+  const loadInvoices = useCallback(
+    (filter: InvoiceStatus | 'ALL', search?: string) => {
+      InvoiceService.getInvoices(filter, search)
+        .then((data) => {
+          setInvoices(data);
+          setLoading(false);
+          setRefreshing(false);
+        })
+        .catch(() => {
+          setInvoices((prev) => (prev.length === 0 ? MOCK_INVOICES : prev));
+          setLoading(false);
+          setRefreshing(false);
+        });
+    },
+    []
+  );
 
-  React.useEffect(() => {
-    loadInvoices(activeFilter);
-  }, [activeFilter, loadInvoices]);
+  // Debounced search and filter watcher
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadInvoices(activeFilter, searchQuery);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [activeFilter, searchQuery, loadInvoices]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadInvoices(activeFilter);
+    loadInvoices(activeFilter, searchQuery);
   };
 
-  const filteredInvoices = invoices.filter((inv) =>
-    activeFilter === 'ALL' ? true : inv.status === activeFilter
-  );
+  const handleOpenDetail = (inv: Invoice) => {
+    setSelectedInvoice(inv);
+    setDetailModalVisible(true);
+  };
+
+  const handleInvoiceUpdated = (updated: Invoice) => {
+    setSelectedInvoice(updated);
+    setInvoices((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+  };
 
   const handleCreateInvoice = () => {
-    Alert.alert('Invoice Creation', 'Create invoices from accepted quotations via the Quotations tab or create standalone invoices.');
+    Alert.alert(
+      'Invoice Creation',
+      'In SmartQuote, invoices are typically generated directly from accepted quotations. Go to the Quotations tab and tap "Convert to Invoice" on any accepted quotation.'
+    );
   };
-
-  const handleRecordPayment = (invoiceNumber: string) => {
-    Alert.alert('Record Payment', `Payment recording for ${invoiceNumber} will be integrated in Phase 17/18.`);
-  };
-
-
 
   const handleSendReminder = (inv: Invoice) => {
-    const remaining = inv.total - inv.paidAmount;
-    const message = `Hi ${inv.customerName}, this is a reminder regarding invoice ${inv.invoiceNumber} for ₹${remaining.toLocaleString('en-IN')}, which is pending. Please let us know once the payment is completed.`;
+    const remaining = Math.max(0, inv.total - inv.paidAmount);
+    const message = `Hi ${inv.customerName}, this is a reminder regarding Tax Invoice ${inv.invoiceNumber} for ₹${remaining.toLocaleString('en-IN')}, which is pending. Please let us know once the payment is completed.`;
     const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
 
     Linking.openURL(whatsappUrl).catch(() => {
@@ -98,6 +114,23 @@ export function InvoicesScreen() {
       />
 
       <View style={styles.container}>
+        {/* Search Bar */}
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={18} color={Colors.light.textSecondary} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by invoice number (e.g. INV-2026-0001) or client..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor={Colors.light.textMuted}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={18} color={Colors.light.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* Horizontal Filter Tabs */}
         <View style={styles.filterScroll}>
           {FILTER_TABS.map((tab) => (
@@ -131,7 +164,7 @@ export function InvoicesScreen() {
           </View>
         ) : (
           <FlatList
-            data={filteredInvoices}
+            data={invoices}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -148,94 +181,105 @@ export function InvoicesScreen() {
               </View>
             }
             renderItem={({ item }) => {
-              const remaining = item.total - item.paidAmount;
+              const remaining = Math.max(0, item.total - item.paidAmount);
 
-            return (
-              <Card style={styles.invoiceCard}>
-                <View style={styles.cardTop}>
-                  <View>
-                    <Text style={styles.invoiceNumber}>{item.invoiceNumber}</Text>
-                    <Text style={styles.customerName}>{item.customerName}</Text>
-                  </View>
-                  <StatusBadge status={item.status} />
-                </View>
-
-                <View style={styles.balanceSection}>
-                  <View style={styles.balanceCol}>
-                    <Text style={styles.balanceLabel}>Total Invoice</Text>
-                    <Text style={styles.balanceTotal}>
-                      ₹{item.total.toLocaleString('en-IN')}
-                    </Text>
-                  </View>
-
-                  <View style={styles.balanceCol}>
-                    <Text style={styles.balanceLabel}>Paid Amount</Text>
-                    <Text style={styles.balancePaid}>
-                      ₹{item.paidAmount.toLocaleString('en-IN')}
-                    </Text>
-                  </View>
-
-                  <View style={styles.balanceCol}>
-                    <Text style={styles.balanceLabel}>Remaining</Text>
-                    <Text
-                      style={[
-                        styles.balanceRemaining,
-                        remaining > 0 ? styles.dueText : styles.paidText,
-                      ]}>
-                      ₹{remaining.toLocaleString('en-IN')}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.datesRow}>
-                  <Text style={styles.dateText}>Issued: {item.issueDate}</Text>
-                  <Text
-                    style={[
-                      styles.dateText,
-                      item.status === 'OVERDUE' && styles.overdueDateText,
-                    ]}>
-                    Due: {item.dueDate}
-                  </Text>
-                </View>
-
-                <View style={styles.cardActions}>
-                  {remaining > 0 && (
-                    <Button
-                      title="Remind"
-                      variant="outline"
-                      size="small"
-                      icon={<Ionicons name="notifications-outline" size={15} color={Colors.light.primary} />}
-                      onPress={() => handleSendReminder(item)}
-                      style={styles.actionBtn}
-                    />
-                  )}
-                  {remaining > 0 && (
-                    <Button
-                      title="Record Payment"
-                      variant="primary"
-                      size="small"
-                      icon={<Ionicons name="card-outline" size={15} color="#FFFFFF" />}
-                      onPress={() => handleRecordPayment(item.invoiceNumber)}
-                      style={styles.actionBtn}
-                    />
-                  )}
-                  {remaining === 0 && (
-                    <View style={styles.settledRow}>
-                      <Ionicons name="checkmark-circle" size={18} color={Colors.light.success} />
-                      <Text style={styles.settledText}>Fully Settled</Text>
+              return (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => handleOpenDetail(item)}>
+                  <Card style={styles.invoiceCard}>
+                    <View style={styles.cardTop}>
+                      <View>
+                        <Text style={styles.invoiceNumber}>{item.invoiceNumber}</Text>
+                        <Text style={styles.customerName}>{item.customerName}</Text>
+                      </View>
+                      <StatusBadge status={item.status} />
                     </View>
-                  )}
-                </View>
-              </Card>
-            );
-          }}
-        />
+
+                    <View style={styles.balanceSection}>
+                      <View style={styles.balanceCol}>
+                        <Text style={styles.balanceLabel}>Total Invoice</Text>
+                        <Text style={styles.balanceTotal}>
+                          ₹{item.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </Text>
+                      </View>
+
+                      <View style={styles.balanceCol}>
+                        <Text style={styles.balanceLabel}>Paid Amount</Text>
+                        <Text style={styles.balancePaid}>
+                          ₹{item.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </Text>
+                      </View>
+
+                      <View style={styles.balanceCol}>
+                        <Text style={styles.balanceLabel}>Balance Due</Text>
+                        <Text
+                          style={[
+                            styles.balanceRemaining,
+                            remaining > 0 ? styles.dueText : styles.paidText,
+                          ]}>
+                          ₹{remaining.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.datesRow}>
+                      <Text style={styles.dateText}>Issued: {item.issueDate}</Text>
+                      <Text
+                        style={[
+                          styles.dateText,
+                          item.status === 'OVERDUE' && styles.overdueDateText,
+                        ]}>
+                        Due: {item.dueDate}
+                      </Text>
+                    </View>
+
+                    <View style={styles.cardActions}>
+                      <Button
+                        title="View / Share"
+                        variant="outline"
+                        size="small"
+                        icon={<Ionicons name="document-text-outline" size={15} color={Colors.light.primary} />}
+                        onPress={() => handleOpenDetail(item)}
+                        style={styles.actionBtn}
+                      />
+
+                      {remaining > 0 && item.status !== 'CANCELLED' && (
+                        <Button
+                          title="Remind"
+                          variant="outline"
+                          size="small"
+                          icon={<Ionicons name="notifications-outline" size={15} color={Colors.light.primary} />}
+                          onPress={() => handleSendReminder(item)}
+                          style={styles.actionBtn}
+                        />
+                      )}
+
+                      {remaining === 0 && item.status !== 'CANCELLED' && (
+                        <View style={styles.settledRow}>
+                          <Ionicons name="checkmark-circle" size={18} color={Colors.light.success} />
+                          <Text style={styles.settledText}>Fully Settled</Text>
+                        </View>
+                      )}
+                    </View>
+                  </Card>
+                </TouchableOpacity>
+              );
+            }}
+          />
         )}
       </View>
+
+      {/* Invoice Detail & Document Sharing Modal */}
+      <InvoiceDetailModal
+        visible={detailModalVisible}
+        invoice={selectedInvoice}
+        onClose={() => setDetailModalVisible(false)}
+        onUpdated={handleInvoiceUpdated}
+      />
     </SafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -245,6 +289,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 16,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.card,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 42,
+    marginTop: 8,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 13,
+    color: Colors.light.text,
   },
   filterScroll: {
     flexDirection: 'row',

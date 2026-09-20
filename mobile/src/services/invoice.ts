@@ -119,4 +119,28 @@ export const InvoiceService = {
     );
     return mapApiInvoice(response.data);
   },
+
+  /**
+   * Update invoice details or status (e.g. CANCELLED, PAID).
+   */
+  async updateInvoice(
+    id: string,
+    updates: {
+      status?: InvoiceStatus;
+      due_date?: string;
+      notes?: string;
+      terms?: string;
+    }
+  ): Promise<Invoice> {
+    const response = await apiClient.patch<ApiInvoice>(`/api/v1/invoices/${id}`, updates);
+    return mapApiInvoice(response.data);
+  },
+
+  /**
+   * Return the relative endpoint for downloading the Tax Invoice PDF.
+   */
+  getInvoicePdfUrl(id: string): string {
+    return `/api/v1/invoices/${id}/pdf`;
+  },
 };
+

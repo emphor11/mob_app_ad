@@ -62,3 +62,11 @@ class ConvertQuotationRequest(BaseModel):
     issue_date: Optional[date] = Field(None, description="Optional custom issue date (defaults to today)")
     notes: Optional[str] = Field(None, description="Optional overridden notes for invoice")
     terms: Optional[str] = Field(None, description="Optional overridden terms for invoice")
+
+
+class InvoiceUpdate(BaseModel):
+    status: Optional[InvoiceStatus] = None
+    due_date: Optional[date] = None
+    notes: Optional[str] = None
+    terms: Optional[str] = None
+
