@@ -13,8 +13,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { Button } from '@/components/Button';
 import { StatusBadge } from '@/components/StatusBadge';
-import { Quotation, QuotationStatus } from '@/types';
+import { Quotation, QuotationStatus, Business, Customer } from '@/types';
 import { QuotationService } from '@/services/quotation';
+import { BusinessService } from '@/services/business';
+import { CustomerService } from '@/services/customer';
+import { QuotationPdfService } from '@/services/quotationPdf';
+
 
 interface Props {
   visible: boolean;
@@ -25,8 +29,49 @@ interface Props {
 
 export function QuotationDetailModal({ visible, quotation, onClose, onUpdated }: Props) {
   const [updating, setUpdating] = useState(false);
+  const [sharingPdf, setSharingPdf] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+
+  React.useEffect(() => {
+    if (visible && quotation) {
+      // Fetch current business and customer details for comprehensive PDF generation
+      BusinessService.getMyBusiness()
+        .then((b) => setBusiness(b))
+        .catch(() => {});
+
+      if (quotation.customerId) {
+        CustomerService.getCustomerById(quotation.customerId)
+          .then((c) => setCustomer(c))
+          .catch(() => {});
+      }
+    }
+  }, [visible, quotation]);
 
   if (!quotation) return null;
+
+  const handleSharePdf = async () => {
+    setSharingPdf(true);
+    try {
+      await QuotationPdfService.shareQuotationPdf(quotation, business, customer);
+    } finally {
+      setSharingPdf(false);
+    }
+  };
+
+  const handlePrintPdf = async () => {
+    setPrinting(true);
+    try {
+      await QuotationPdfService.printQuotation(quotation, business, customer);
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const handleWhatsAppShare = async () => {
+    await QuotationPdfService.shareViaWhatsAppText(quotation, business, customer);
+  };
 
   const handleUpdateStatus = async (newStatus: QuotationStatus) => {
     setUpdating(true);
@@ -42,6 +87,7 @@ export function QuotationDetailModal({ visible, quotation, onClose, onUpdated }:
       setUpdating(false);
     }
   };
+
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -161,14 +207,51 @@ export function QuotationDetailModal({ visible, quotation, onClose, onUpdated }:
               </View>
             ) : null}
 
+            {/* Document Sharing & PDF Section */}
+            <View style={styles.shareSection}>
+              <Text style={styles.sectionHeader}>Share & Export Document</Text>
+              
+              <Button
+                title="Share PDF (WhatsApp / Email / Other)"
+                variant="primary"
+                loading={sharingPdf}
+                icon={<Ionicons name="share-social-outline" size={18} color="#FFFFFF" />}
+                onPress={handleSharePdf}
+                style={styles.primaryShareButton}
+              />
+
+              <View style={styles.shareOptionsRow}>
+                <TouchableOpacity
+                  style={[styles.quickShareBtn, styles.whatsAppBtn]}
+                  onPress={handleWhatsAppShare}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
+                  <Text style={styles.quickShareBtnText}>WhatsApp Text</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.quickShareBtn, styles.printBtn]}
+                  onPress={handlePrintPdf}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="print-outline" size={18} color={Colors.light.text} />
+                  <Text style={[styles.quickShareBtnText, { color: Colors.light.text }]}>
+                    {printing ? 'Preparing...' : 'Print / Preview'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* Status Transition Action Buttons */}
             <View style={styles.actionSection}>
+              <Text style={styles.sectionHeader}>Workflow Actions</Text>
               {quotation.status === 'DRAFT' && (
                 <Button
                   title="Mark as Sent to Client"
-                  variant="primary"
+                  variant="outline"
                   loading={updating}
-                  icon={<Ionicons name="paper-plane-outline" size={16} color="#FFFFFF" />}
+                  icon={<Ionicons name="paper-plane-outline" size={16} color={Colors.light.primary} />}
                   onPress={() => handleUpdateStatus('SENT')}
                   style={{ marginBottom: 8 }}
                 />
@@ -196,6 +279,7 @@ export function QuotationDetailModal({ visible, quotation, onClose, onUpdated }:
               )}
             </View>
           </ScrollView>
+
         </View>
       </View>
     </Modal>
@@ -379,4 +463,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
+  shareSection: {
+    marginTop: 6,
+    marginBottom: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  primaryShareButton: {
+    marginBottom: 10,
+  },
+  shareOptionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  quickShareBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  whatsAppBtn: {
+    backgroundColor: '#25D366',
+  },
+  printBtn: {
+    backgroundColor: '#EDF2F7',
+    borderWidth: 1,
+    borderColor: '#CBD5E0',
+  },
+  quickShareBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });
+

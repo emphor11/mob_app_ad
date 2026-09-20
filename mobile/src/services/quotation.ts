@@ -161,4 +161,12 @@ export const QuotationService = {
     const response = await apiClient.patch<ApiQuotation>(`/api/v1/quotations/${id}`, payload);
     return mapApiQuotation(response.data);
   },
+
+  /**
+   * Return the URL endpoint for downloading the quotation PDF.
+   */
+  getQuotationPdfUrl(id: string): string {
+    return `/api/v1/quotations/${id}/pdf`;
+  },
 };
+

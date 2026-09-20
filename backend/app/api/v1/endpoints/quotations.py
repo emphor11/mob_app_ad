@@ -1,6 +1,6 @@
 import uuid
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, or_
 
@@ -14,6 +14,8 @@ from app.services.quotation_calculator import (
     calculate_quotation_totals,
     generate_quotation_number,
 )
+from app.services.pdf_generator import generate_quotation_pdf
+
 
 router = APIRouter()
 
@@ -261,3 +263,43 @@ def update_quotation(
     res = QuotationResponse.model_validate(quotation)
     res.customer_name = quotation.customer.name if quotation.customer else None
     return res
+
+
+@router.get(
+    "/{quotation_id}/pdf",
+    summary="Download Quotation PDF",
+    response_class=Response,
+)
+def download_quotation_pdf(
+    quotation_id: uuid.UUID,
+    current_business: Business = Depends(get_current_business),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate and stream an A4 trade quotation PDF document.
+    Strictly scoped to current business.
+    """
+    stmt = select(Quotation).where(
+        Quotation.id == quotation_id,
+        Quotation.business_id == current_business.id,
+    )
+    quotation = db.scalars(stmt).first()
+    if not quotation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Quotation not found.",
+        )
+
+    pdf_bytes = generate_quotation_pdf(
+        quotation=quotation,
+        business=current_business,
+        customer=quotation.customer,
+    )
+
+    filename = f"{quotation.quotation_number}.pdf"
+    headers = {
+        "Content-Disposition": f'inline; filename="{filename}"',
+        "Content-Type": "application/pdf",
+    }
+    return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
+
