@@ -120,7 +120,11 @@ def create_quotation(
         tax=total_tax,
         total=grand_total,
         notes=payload.notes.strip() if payload.notes else None,
-        terms=payload.terms.strip() if payload.terms else None,
+        terms=(
+            payload.terms.strip()
+            if payload.terms and payload.terms.strip()
+            else current_business.default_terms
+        ),
     )
     db.add(quotation)
     db.flush()

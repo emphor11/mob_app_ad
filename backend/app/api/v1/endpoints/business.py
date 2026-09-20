@@ -63,6 +63,10 @@ def create_business(
         gstin=payload.gstin,
         logo_url=payload.logo_url,
         currency=payload.currency,
+        invoice_prefix=payload.invoice_prefix or "INV",
+        quotation_prefix=payload.quotation_prefix or "QT",
+        default_terms=payload.default_terms,
+        payment_instructions=payload.payment_instructions,
         is_default=True,
     )
     db.add(business)

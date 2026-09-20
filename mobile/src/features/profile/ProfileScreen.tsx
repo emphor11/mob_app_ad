@@ -42,6 +42,10 @@ export function ProfileScreen() {
   const [formGstin, setFormGstin] = useState('');
   const [formLogoUrl, setFormLogoUrl] = useState('');
   const [formCurrency, setFormCurrency] = useState('₹');
+  const [formInvoicePrefix, setFormInvoicePrefix] = useState('INV');
+  const [formQuotationPrefix, setFormQuotationPrefix] = useState('QT');
+  const [formDefaultTerms, setFormDefaultTerms] = useState('');
+  const [formPaymentInstructions, setFormPaymentInstructions] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -72,6 +76,10 @@ export function ProfileScreen() {
       setFormGstin(business.gstin || '');
       setFormLogoUrl(business.logoUrl || '');
       setFormCurrency(business.currency || '₹');
+      setFormInvoicePrefix(business.invoicePrefix || 'INV');
+      setFormQuotationPrefix(business.quotationPrefix || 'QT');
+      setFormDefaultTerms(business.defaultTerms || '');
+      setFormPaymentInstructions(business.paymentInstructions || '');
     } else {
       // Pre-fill defaults from user profile
       setFormName(currentUser?.fullName ? `${currentUser.fullName}'s Enterprises` : 'My Trade Enterprises');
@@ -82,6 +90,10 @@ export function ProfileScreen() {
       setFormGstin('');
       setFormLogoUrl('');
       setFormCurrency('₹');
+      setFormInvoicePrefix('INV');
+      setFormQuotationPrefix('QT');
+      setFormDefaultTerms('');
+      setFormPaymentInstructions('');
     }
     setModalVisible(true);
   };
@@ -104,6 +116,10 @@ export function ProfileScreen() {
           gstin: formGstin.trim() || undefined,
           logo_url: formLogoUrl.trim() || undefined,
           currency: formCurrency.trim() || '₹',
+          invoice_prefix: formInvoicePrefix.trim().toUpperCase() || 'INV',
+          quotation_prefix: formQuotationPrefix.trim().toUpperCase() || 'QT',
+          default_terms: formDefaultTerms.trim() || undefined,
+          payment_instructions: formPaymentInstructions.trim() || undefined,
         });
         setBusiness(updated);
       } else {
@@ -116,6 +132,10 @@ export function ProfileScreen() {
           gstin: formGstin.trim() || undefined,
           logo_url: formLogoUrl.trim() || undefined,
           currency: formCurrency.trim() || '₹',
+          invoice_prefix: formInvoicePrefix.trim().toUpperCase() || 'INV',
+          quotation_prefix: formQuotationPrefix.trim().toUpperCase() || 'QT',
+          default_terms: formDefaultTerms.trim() || undefined,
+          payment_instructions: formPaymentInstructions.trim() || undefined,
         });
         setBusiness(created);
       }
@@ -219,15 +239,15 @@ export function ProfileScreen() {
         <Card style={styles.settingsCard}>
           <TouchableOpacity
             style={styles.settingItem}
-            onPress={() =>
-              Alert.alert('Document Numbering', 'Configurable prefixes (QT-, INV-) will be added in Phase 21.')
-            }
+            onPress={openEditModal}
             activeOpacity={0.7}>
             <View style={styles.settingLeft}>
               <Ionicons name="barcode-outline" size={20} color={Colors.light.primary} />
               <View style={styles.settingTextCol}>
                 <Text style={styles.settingTitle}>Document Numbering</Text>
-                <Text style={styles.settingSubtitle}>Format: QT-2026-XXXX, INV-2026-XXXX</Text>
+                <Text style={styles.settingSubtitle}>
+                  Quote: {activeBusiness.quotationPrefix || 'QT'}-{new Date().getFullYear()}-XXXX | Inv: {activeBusiness.invoicePrefix || 'INV'}-{new Date().getFullYear()}-XXXX
+                </Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={18} color={Colors.light.textMuted} />
@@ -384,6 +404,57 @@ export function ProfileScreen() {
                 value={formCurrency}
                 onChangeText={setFormCurrency}
                 placeholder="₹"
+                placeholderTextColor={Colors.light.textMuted}
+              />
+
+              <View style={styles.sectionDivider} />
+              <Text style={styles.subSectionTitle}>Document Numbering & Customization</Text>
+
+              <Text style={styles.inputLabel}>Quotation Prefix</Text>
+              <TextInput
+                style={styles.input}
+                value={formQuotationPrefix}
+                onChangeText={setFormQuotationPrefix}
+                placeholder="QT"
+                autoCapitalize="characters"
+                placeholderTextColor={Colors.light.textMuted}
+              />
+              <Text style={styles.helperText}>
+                Preview: {formQuotationPrefix.trim().toUpperCase() || 'QT'}-{new Date().getFullYear()}-0001
+              </Text>
+
+              <Text style={styles.inputLabel}>Invoice Prefix</Text>
+              <TextInput
+                style={styles.input}
+                value={formInvoicePrefix}
+                onChangeText={setFormInvoicePrefix}
+                placeholder="INV"
+                autoCapitalize="characters"
+                placeholderTextColor={Colors.light.textMuted}
+              />
+              <Text style={styles.helperText}>
+                Preview: {formInvoicePrefix.trim().toUpperCase() || 'INV'}-{new Date().getFullYear()}-0001
+              </Text>
+
+              <Text style={styles.inputLabel}>Standard Terms & Conditions</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={formDefaultTerms}
+                onChangeText={setFormDefaultTerms}
+                placeholder="e.g. 100% payment due within 15 days of invoice date. 18% p.a. interest chargeable thereafter."
+                multiline
+                numberOfLines={3}
+                placeholderTextColor={Colors.light.textMuted}
+              />
+
+              <Text style={styles.inputLabel}>Payment Instructions & Bank Details</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={formPaymentInstructions}
+                onChangeText={setFormPaymentInstructions}
+                placeholder="e.g. UPI: 9876543210@upi | Bank: HDFC Bank, A/C: 1234567890, IFSC: HDFC0001234"
+                multiline
+                numberOfLines={3}
                 placeholderTextColor={Colors.light.textMuted}
               />
 
@@ -625,5 +696,23 @@ const styles = StyleSheet.create({
   },
   modalSaveBtn: {
     flex: 2,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: Colors.light.border,
+    marginVertical: 16,
+  },
+  subSectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.light.primary,
+    marginBottom: 8,
+  },
+  helperText: {
+    fontSize: 11,
+    color: Colors.light.primary,
+    fontWeight: '600',
+    marginTop: 4,
+    marginBottom: 4,
   },
 });

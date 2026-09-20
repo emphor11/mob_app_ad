@@ -17,6 +17,10 @@ export interface Business {
   gstin?: string;
   logoUrl?: string;
   currency: string;
+  invoicePrefix?: string;
+  quotationPrefix?: string;
+  defaultTerms?: string;
+  paymentInstructions?: string;
   isDefault?: boolean;
 }
 

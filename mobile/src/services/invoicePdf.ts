@@ -256,6 +256,11 @@ export function generateInvoiceHtml(
         <!-- Header -->
         <div class="header">
           <div>
+            ${
+              business?.logoUrl
+                ? `<img src="${business.logoUrl}" style="max-height: 48px; max-width: 140px; margin-bottom: 8px; object-fit: contain;" alt="Logo" />`
+                : ''
+            }
             <h1 class="business-title">${bizName}</h1>
             <div class="business-meta">
               ${bizOwner ? `<div>${bizOwner}</div>` : ''}
@@ -309,6 +314,16 @@ export function generateInvoiceHtml(
         <div class="lower-section">
           <div class="notes-terms">
             ${
+              business?.paymentInstructions
+                ? `
+              <div class="terms-block">
+                <div class="terms-title">Payment Instructions & Bank Details</div>
+                <div class="terms-content">${business.paymentInstructions}</div>
+              </div>
+            `
+                : ''
+            }
+            ${
               invoice.notes
                 ? `
               <div class="terms-block">
@@ -319,11 +334,11 @@ export function generateInvoiceHtml(
                 : ''
             }
             ${
-              invoice.terms
+              (invoice.terms || business?.defaultTerms)
                 ? `
               <div class="terms-block">
                 <div class="terms-title">Terms & Conditions</div>
-                <div class="terms-content">${invoice.terms}</div>
+                <div class="terms-content">${invoice.terms || business?.defaultTerms}</div>
               </div>
             `
                 : ''

@@ -228,6 +228,11 @@ export function generateQuotationHtml(
         <!-- Header -->
         <div class="header">
           <div>
+            ${
+              business?.logoUrl
+                ? `<img src="${business.logoUrl}" style="max-height: 48px; max-width: 140px; margin-bottom: 8px; object-fit: contain;" alt="Logo" />`
+                : ''
+            }
             <h1 class="business-title">${bizName}</h1>
             <div class="business-meta">
               ${bizOwner ? `<div>${bizOwner}</div>` : ''}
@@ -291,11 +296,11 @@ export function generateQuotationHtml(
                 : ''
             }
             ${
-              quotation.terms
+              (quotation.terms || business?.defaultTerms)
                 ? `
               <div class="terms-block">
                 <div class="terms-title">Terms & Conditions</div>
-                <div class="terms-content">${quotation.terms}</div>
+                <div class="terms-content">${quotation.terms || business?.defaultTerms}</div>
               </div>
             `
                 : ''

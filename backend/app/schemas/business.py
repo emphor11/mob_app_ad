@@ -13,6 +13,10 @@ class BusinessBase(BaseModel):
     gstin: Optional[str] = Field(None, max_length=50, description="Optional GSTIN")
     logo_url: Optional[str] = Field(None, max_length=1000, description="Optional business logo URI/URL")
     currency: str = Field(default="₹", max_length=10, description="Currency symbol")
+    invoice_prefix: str = Field(default="INV", max_length=20, description="Prefix for invoice numbering (e.g. INV, AB)")
+    quotation_prefix: str = Field(default="QT", max_length=20, description="Prefix for quotation numbering (e.g. QT, EST)")
+    default_terms: Optional[str] = Field(None, description="Default terms and conditions for commercial documents")
+    payment_instructions: Optional[str] = Field(None, description="Payment instructions (Bank details, IFSC, UPI ID)")
 
 
 class BusinessCreate(BusinessBase):
@@ -28,6 +32,10 @@ class BusinessUpdate(BaseModel):
     gstin: Optional[str] = Field(None, max_length=50)
     logo_url: Optional[str] = Field(None, max_length=1000)
     currency: Optional[str] = Field(None, max_length=10)
+    invoice_prefix: Optional[str] = Field(None, max_length=20)
+    quotation_prefix: Optional[str] = Field(None, max_length=20)
+    default_terms: Optional[str] = None
+    payment_instructions: Optional[str] = None
     is_default: Optional[bool] = None
 
 

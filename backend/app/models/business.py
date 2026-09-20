@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import String, Boolean, ForeignKey
+from sqlalchemy import String, Boolean, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import UUIDModel
@@ -76,6 +76,29 @@ class Business(UUIDModel):
         Boolean,
         default=True,
         nullable=False,
+    )
+
+    # Document Numbering & Terms Customization (Phase 21)
+    invoice_prefix: Mapped[str] = mapped_column(
+        String(20),
+        default="INV",
+        nullable=False,
+    )
+
+    quotation_prefix: Mapped[str] = mapped_column(
+        String(20),
+        default="QT",
+        nullable=False,
+    )
+
+    default_terms: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    payment_instructions: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
     )
 
     # Relationships

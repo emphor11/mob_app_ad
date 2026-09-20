@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 
 from app.models.quotation import Quotation
+from app.models.business import Business
 from app.schemas.quotation import QuotationItemCreate
 
 TWO_PLACES = Decimal("0.01")
@@ -80,9 +81,12 @@ def generate_quotation_number(db: Session, business_id: uuid.UUID) -> str:
     """
     Generate sequential human-readable quotation identifier: QT-YYYY-XXXX.
     Enforces Rule 5 (UUID PKs internally, business sequential prefixes externally).
+    Supports custom quotation prefix configured per business.
     """
     current_year = date.today().year
-    prefix = f"QT-{current_year}-"
+    business = db.get(Business, business_id)
+    raw_prefix = (business.quotation_prefix if business and business.quotation_prefix else "QT").strip().upper()
+    prefix = f"{raw_prefix}-{current_year}-"
 
     stmt = (
         select(func.count(Quotation.id))

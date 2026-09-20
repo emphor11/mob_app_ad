@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from fastapi import HTTPException, status
 
+from app.models.business import Business
 from app.models.quotation import Quotation, QuotationStatus
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus
 
@@ -12,10 +13,12 @@ from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus
 def generate_invoice_number(db: Session, business_id: uuid.UUID) -> str:
     """
     Generate sequential human-readable invoice identifier: INV-YYYY-XXXX.
-    Enforces sequential prefixes externally per business.
+    Supports custom invoice prefix configured per business.
     """
     current_year = date.today().year
-    prefix = f"INV-{current_year}-"
+    business = db.get(Business, business_id)
+    raw_prefix = (business.invoice_prefix if business and business.invoice_prefix else "INV").strip().upper()
+    prefix = f"{raw_prefix}-{current_year}-"
 
     stmt = (
         select(func.count(Invoice.id))
@@ -68,6 +71,7 @@ def convert_quotation_to_invoice(
     issue_date = custom_issue_date or date.today()
     due_date = issue_date + timedelta(days=due_days)
 
+    business = db.get(Business, business_id)
     invoice_number = generate_invoice_number(db, business_id)
 
     # Create Invoice Header
@@ -85,7 +89,7 @@ def convert_quotation_to_invoice(
         total=quotation.total,
         paid_amount=quotation.total * 0,  # 0.00 Decimal
         notes=custom_notes if custom_notes is not None else quotation.notes,
-        terms=custom_terms if custom_terms is not None else quotation.terms,
+        terms=custom_terms if custom_terms is not None else (quotation.terms if quotation.terms else (business.default_terms if business else None)),
     )
     db.add(invoice)
     db.flush()  # Populates invoice.id for child line items

@@ -127,7 +127,7 @@ def generate_quotation_pdf(
 
     story = []
 
-    # 1. Header Banner: Business Info (Left) + Quotation Number & Date (Right)
+    # 1. Header Banner: Business Info (Left, optionally with logo) + Quotation Number & Date (Right)
     biz_lines = [
         f"<b>{business.name}</b>",
         f"Proprietor / Contact: {business.owner_name}",
@@ -139,6 +139,19 @@ def generate_quotation_pdf(
 
     biz_info_p = Paragraph("<br/>".join(biz_lines), body_style)
 
+    # Optional business logo on top of biz info or side-by-side
+    biz_header_elements = []
+    if business.logo_url:
+        try:
+            from reportlab.platypus import Image as RLImage
+            # If logo_url is local path or valid image source
+            logo_img = RLImage(business.logo_url, width=28 * mm, height=14 * mm)
+            biz_header_elements.append(logo_img)
+            biz_header_elements.append(Spacer(1, 4))
+        except Exception:
+            pass
+    biz_header_elements.append(biz_info_p)
+
     quote_meta_lines = [
         "<font size=16 color='#2B6CB0'><b>ESTIMATE / QUOTATION</b></font>",
         f"<b>Quote No:</b> {quotation.quotation_number}",
@@ -149,7 +162,7 @@ def generate_quotation_pdf(
     quote_meta_p = Paragraph("<br/>".join(quote_meta_lines), doc_meta_style)
 
     header_table = Table(
-        [[biz_info_p, quote_meta_p]],
+        [[biz_header_elements, quote_meta_p]],
         colWidths=[105 * mm, 77 * mm],
     )
     header_table.setStyle(
@@ -292,8 +305,9 @@ def generate_quotation_pdf(
     notes_parts = []
     if quotation.notes:
         notes_parts.append(f"<b>Notes:</b><br/>{quotation.notes}")
-    if quotation.terms:
-        notes_parts.append(f"<b>Terms & Conditions:</b><br/>{quotation.terms}")
+    effective_terms = quotation.terms or business.default_terms
+    if effective_terms:
+        notes_parts.append(f"<b>Terms & Conditions:</b><br/>{effective_terms}")
     if not notes_parts:
         notes_parts.append("<i>Thank you for your business! Please contact us if you have any questions.</i>")
 
@@ -438,7 +452,7 @@ def generate_invoice_pdf(
 
     story = []
 
-    # 1. Header Banner: Business Info (Left) + Invoice Number & Dates (Right)
+    # 1. Header Banner: Business Info (Left, optionally with logo) + Invoice Number & Dates (Right)
     biz_lines = [
         f"<b>{business.name}</b>",
         f"Proprietor / Contact: {business.owner_name}",
@@ -450,6 +464,18 @@ def generate_invoice_pdf(
 
     biz_info_p = Paragraph("<br/>".join(biz_lines), body_style)
 
+    # Optional business logo on top of biz info or side-by-side
+    biz_header_elements = []
+    if business.logo_url:
+        try:
+            from reportlab.platypus import Image as RLImage
+            logo_img = RLImage(business.logo_url, width=28 * mm, height=14 * mm)
+            biz_header_elements.append(logo_img)
+            biz_header_elements.append(Spacer(1, 4))
+        except Exception:
+            pass
+    biz_header_elements.append(biz_info_p)
+
     invoice_meta_lines = [
         "<font size=16 color='#1E40AF'><b>TAX INVOICE</b></font>",
         f"<b>Invoice No:</b> {invoice.invoice_number}",
@@ -460,7 +486,7 @@ def generate_invoice_pdf(
     invoice_meta_p = Paragraph("<br/>".join(invoice_meta_lines), doc_meta_style)
 
     header_table = Table(
-        [[biz_info_p, invoice_meta_p]],
+        [[biz_header_elements, invoice_meta_p]],
         colWidths=[105 * mm, 77 * mm],
     )
     header_table.setStyle(
@@ -606,12 +632,15 @@ def generate_invoice_pdf(
         ])
     )
 
-    # Place Notes/Terms on Left and Summary on Right
+    # Place Notes/Terms/Payment Instructions on Left and Summary on Right
     notes_parts = []
+    if business.payment_instructions:
+        notes_parts.append(f"<b>Payment Instructions & Bank Details:</b><br/>{business.payment_instructions}")
     if invoice.notes:
         notes_parts.append(f"<b>Notes:</b><br/>{invoice.notes}")
-    if invoice.terms:
-        notes_parts.append(f"<b>Terms & Conditions:</b><br/>{invoice.terms}")
+    effective_terms = invoice.terms or business.default_terms
+    if effective_terms:
+        notes_parts.append(f"<b>Terms & Conditions:</b><br/>{effective_terms}")
     if not notes_parts:
         notes_parts.append("<i>Thank you for your business! Please settle the balance due by the due date.</i>")
 

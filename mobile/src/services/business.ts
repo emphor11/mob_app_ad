@@ -10,6 +10,10 @@ export interface BusinessInput {
   gstin?: string;
   logo_url?: string;
   currency?: string;
+  invoice_prefix?: string;
+  quotation_prefix?: string;
+  default_terms?: string;
+  payment_instructions?: string;
 }
 
 export interface BusinessUpdateInput {
@@ -21,6 +25,10 @@ export interface BusinessUpdateInput {
   gstin?: string;
   logo_url?: string;
   currency?: string;
+  invoice_prefix?: string;
+  quotation_prefix?: string;
+  default_terms?: string;
+  payment_instructions?: string;
 }
 
 interface ApiBusinessResponse {
@@ -34,6 +42,10 @@ interface ApiBusinessResponse {
   gstin?: string | null;
   logo_url?: string | null;
   currency: string;
+  invoice_prefix?: string | null;
+  quotation_prefix?: string | null;
+  default_terms?: string | null;
+  payment_instructions?: string | null;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -51,6 +63,10 @@ function mapApiBusiness(apiBiz: ApiBusinessResponse): Business {
     gstin: apiBiz.gstin ?? undefined,
     logoUrl: apiBiz.logo_url ?? undefined,
     currency: apiBiz.currency,
+    invoicePrefix: apiBiz.invoice_prefix ?? undefined,
+    quotationPrefix: apiBiz.quotation_prefix ?? undefined,
+    defaultTerms: apiBiz.default_terms ?? undefined,
+    paymentInstructions: apiBiz.payment_instructions ?? undefined,
     isDefault: apiBiz.is_default,
   };
 }
