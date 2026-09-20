@@ -18,6 +18,8 @@ import { QuotationService } from '@/services/quotation';
 import { BusinessService } from '@/services/business';
 import { CustomerService } from '@/services/customer';
 import { QuotationPdfService } from '@/services/quotationPdf';
+import { InvoiceService } from '@/services/invoice';
+
 
 
 interface Props {
@@ -29,10 +31,12 @@ interface Props {
 
 export function QuotationDetailModal({ visible, quotation, onClose, onUpdated }: Props) {
   const [updating, setUpdating] = useState(false);
+  const [converting, setConverting] = useState(false);
   const [sharingPdf, setSharingPdf] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [business, setBusiness] = useState<Business | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
+
 
   React.useEffect(() => {
     if (visible && quotation) {
@@ -109,6 +113,39 @@ export function QuotationDetailModal({ visible, quotation, onClose, onUpdated }:
       ]
     );
   };
+
+  const confirmConvertToInvoice = () => {
+    Alert.alert(
+      'Convert to Official Invoice',
+      `Generate official Tax Invoice from ${quotation.quotationNumber}? All items and financials will be copied to an independent invoice record.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Convert Now',
+          style: 'default',
+          onPress: async () => {
+            setConverting(true);
+            try {
+              const invoice = await InvoiceService.convertQuotationToInvoice(quotation.id);
+              Alert.alert(
+                'Invoice Created!',
+                `Quotation converted to Tax Invoice ${invoice.invoiceNumber}.`
+              );
+              onUpdated({
+                ...quotation,
+                status: 'CONVERTED',
+              });
+            } catch {
+              Alert.alert('Conversion Failed', 'Could not convert quotation to invoice. Please ensure quotation is accepted.');
+            } finally {
+              setConverting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
 
 
 
@@ -320,22 +357,33 @@ export function QuotationDetailModal({ visible, quotation, onClose, onUpdated }:
               )}
 
               {quotation.status === 'ACCEPTED' && (
-                <View style={styles.acceptedBanner}>
-                  <Ionicons name="checkmark-done-circle" size={24} color={Colors.light.success} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.acceptedBannerTitle}>Quotation Accepted</Text>
-                    <Text style={styles.acceptedBannerText}>
-                      Client accepted this quotation. Ready to be converted into an active tax invoice.
-                    </Text>
+                <View style={{ gap: 10 }}>
+                  <View style={styles.acceptedBanner}>
+                    <Ionicons name="checkmark-done-circle" size={24} color={Colors.light.success} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.acceptedBannerTitle}>Quotation Accepted</Text>
+                      <Text style={styles.acceptedBannerText}>
+                        Client agreed to quotation. You can now issue the formal Tax Invoice.
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => handleUpdateStatus('SENT')}
+                      style={styles.revertButton}
+                    >
+                      <Text style={styles.revertButtonText}>Undo</Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    onPress={() => handleUpdateStatus('SENT')}
-                    style={styles.revertButton}
-                  >
-                    <Text style={styles.revertButtonText}>Undo</Text>
-                  </TouchableOpacity>
+
+                  <Button
+                    title="Convert to Tax Invoice"
+                    variant="primary"
+                    loading={converting}
+                    icon={<Ionicons name="receipt-outline" size={18} color="#FFFFFF" />}
+                    onPress={confirmConvertToInvoice}
+                  />
                 </View>
               )}
+
 
               {(quotation.status === 'REJECTED' || quotation.status === 'EXPIRED') && (
                 <View style={{ gap: 8 }}>

@@ -18,7 +18,9 @@ import { Header } from '@/components/Header';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Quotation, QuotationStatus } from '@/types';
 import { QuotationService } from '@/services/quotation';
+import { InvoiceService } from '@/services/invoice';
 import { CreateQuotationModal } from './CreateQuotationModal';
+
 import { QuotationDetailModal } from './QuotationDetailModal';
 import { MOCK_QUOTATIONS } from '@/constants/mockData';
 
@@ -90,12 +92,31 @@ export function QuotationsScreen() {
   };
 
 
-  const handleConvertToInvoice = (quoteNumber: string) => {
+  const handleConvertToInvoice = (quote: Quotation) => {
     Alert.alert(
-      'Convert to Invoice',
-      `Atomic conversion from ${quoteNumber} to Invoice will be implemented in Phase 15/16.`
+      'Convert to Official Invoice',
+      `Generate Tax Invoice from ${quote.quotationNumber}? Items and totals will be copied into an official invoice record.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Convert Now',
+          onPress: async () => {
+            try {
+              const invoice = await InvoiceService.convertQuotationToInvoice(quote.id);
+              Alert.alert('Invoice Created!', `Invoice ${invoice.invoiceNumber} has been generated.`);
+              handleQuotationUpdated({
+                ...quote,
+                status: 'CONVERTED',
+              });
+            } catch {
+              Alert.alert('Conversion Failed', 'Could not convert quotation to invoice.');
+            }
+          },
+        },
+      ]
     );
   };
+
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -215,12 +236,13 @@ export function QuotationsScreen() {
                       {item.status === 'ACCEPTED' && (
                         <TouchableOpacity
                           style={[styles.actionLink, styles.convertLink]}
-                          onPress={() => handleConvertToInvoice(item.quotationNumber)}>
+                          onPress={() => handleConvertToInvoice(item)}>
                           <Text style={[styles.actionLinkText, styles.convertLinkText]}>
                             Convert
                           </Text>
                         </TouchableOpacity>
                       )}
+
                     </View>
                   </View>
                 </Card>

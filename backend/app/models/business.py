@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from app.models.user import User
     from app.models.customer import Customer
     from app.models.quotation import Quotation
+    from app.models.invoice import Invoice
+
 
 
 
@@ -88,5 +90,11 @@ class Business(UUIDModel):
         back_populates="business",
         cascade="all, delete-orphan",
     )
+    invoices: Mapped[list["Invoice"]] = relationship(
+        "Invoice",
+        back_populates="business",
+        cascade="all, delete-orphan",
+    )
+
 
 

@@ -11,27 +11,25 @@ from app.db.base import UUIDModel
 if TYPE_CHECKING:
     from app.models.business import Business
     from app.models.customer import Customer
-    from app.models.invoice import Invoice
+    from app.models.quotation import Quotation
 
 
-
-class QuotationStatus(str, enum.Enum):
-    DRAFT = "DRAFT"
-    SENT = "SENT"
-    ACCEPTED = "ACCEPTED"
-    REJECTED = "REJECTED"
-    EXPIRED = "EXPIRED"
-    CONVERTED = "CONVERTED"
+class InvoiceStatus(str, enum.Enum):
+    UNPAID = "UNPAID"
+    PARTIALLY_PAID = "PARTIALLY_PAID"
+    PAID = "PAID"
+    OVERDUE = "OVERDUE"
+    CANCELLED = "CANCELLED"
 
 
-class Quotation(UUIDModel):
+class Invoice(UUIDModel):
     """
-    Commercial quotation entity.
+    Commercial Tax Invoice entity.
     Enforces Rule 4 (Financial Exact Decimals): All currency and subtotal columns
     use NUMERIC(12, 2) rather than floating point numbers.
     """
 
-    __tablename__ = "quotations"
+    __tablename__ = "invoices"
 
     business_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -47,7 +45,14 @@ class Quotation(UUIDModel):
         nullable=False,
     )
 
-    quotation_number: Mapped[str] = mapped_column(
+    quotation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("quotations.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+
+    invoice_number: Mapped[str] = mapped_column(
         String(50),
         index=True,
         nullable=False,
@@ -58,14 +63,14 @@ class Quotation(UUIDModel):
         nullable=False,
     )
 
-    valid_until: Mapped[date] = mapped_column(
+    due_date: Mapped[date] = mapped_column(
         Date,
         nullable=False,
     )
 
-    status: Mapped[QuotationStatus] = mapped_column(
-        SQLEnum(QuotationStatus, name="quotation_status_enum"),
-        default=QuotationStatus.DRAFT,
+    status: Mapped[InvoiceStatus] = mapped_column(
+        SQLEnum(InvoiceStatus, name="invoice_status_enum"),
+        default=InvoiceStatus.UNPAID,
         index=True,
         nullable=False,
     )
@@ -95,6 +100,12 @@ class Quotation(UUIDModel):
         nullable=False,
     )
 
+    paid_amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=False,
+    )
+
     notes: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
@@ -106,33 +117,29 @@ class Quotation(UUIDModel):
     )
 
     # Relationships
-    business: Mapped["Business"] = relationship("Business", back_populates="quotations")
-    customer: Mapped["Customer"] = relationship("Customer", back_populates="quotations")
-    items: Mapped[list["QuotationItem"]] = relationship(
-        "QuotationItem",
-        back_populates="quotation",
+    business: Mapped["Business"] = relationship("Business", back_populates="invoices")
+    customer: Mapped["Customer"] = relationship("Customer", back_populates="invoices")
+    quotation: Mapped[Optional["Quotation"]] = relationship("Quotation", back_populates="invoice")
+    items: Mapped[list["InvoiceItem"]] = relationship(
+        "InvoiceItem",
+        back_populates="invoice",
         cascade="all, delete-orphan",
-        order_by="QuotationItem.created_at.asc()",
-    )
-    invoice: Mapped[Optional["Invoice"]] = relationship(
-        "Invoice",
-        back_populates="quotation",
-        uselist=False,
+        order_by="InvoiceItem.created_at.asc()",
     )
 
 
-
-class QuotationItem(UUIDModel):
+class InvoiceItem(UUIDModel):
     """
-    Individual line item for a quotation.
-    Quantities, unit prices, tax rates, tax amounts, and line totals all use NUMERIC(12, 2).
+    Individual line item for an invoice.
+    Maintains independent historical data separate from any originating quotation item.
+    All monetary and quantity figures use NUMERIC(12, 2).
     """
 
-    __tablename__ = "quotation_items"
+    __tablename__ = "invoice_items"
 
-    quotation_id: Mapped[uuid.UUID] = mapped_column(
+    invoice_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("quotations.id", ondelete="CASCADE"),
+        ForeignKey("invoices.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )
@@ -173,4 +180,4 @@ class QuotationItem(UUIDModel):
     )
 
     # Relationships
-    quotation: Mapped["Quotation"] = relationship("Quotation", back_populates="items")
+    invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="items")

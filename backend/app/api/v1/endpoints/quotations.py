@@ -15,6 +15,8 @@ from app.services.quotation_calculator import (
     generate_quotation_number,
 )
 from app.services.pdf_generator import generate_quotation_pdf
+from app.schemas.invoice import InvoiceResponse, ConvertQuotationRequest
+from app.services.invoice_service import convert_quotation_to_invoice
 
 
 router = APIRouter()
@@ -332,4 +334,36 @@ def download_quotation_pdf(
         "Content-Type": "application/pdf",
     }
     return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
+
+
+@router.post(
+    "/{quotation_id}/convert",
+    response_model=InvoiceResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Convert ACCEPTED quotation to Invoice",
+)
+def convert_quotation(
+    quotation_id: uuid.UUID,
+    payload: ConvertQuotationRequest = ConvertQuotationRequest(),
+    current_business: Business = Depends(get_current_business),
+    db: Session = Depends(get_db),
+):
+    """
+    Atomically convert an ACCEPTED quotation into an official Tax Invoice.
+    Creates an independent copy of all line items, assigns an INV-YYYY-XXXX number,
+    and updates the quotation status to CONVERTED.
+    """
+    invoice = convert_quotation_to_invoice(
+        db=db,
+        business_id=current_business.id,
+        quotation_id=quotation_id,
+        due_days=payload.due_days,
+        custom_issue_date=payload.issue_date,
+        custom_notes=payload.notes,
+        custom_terms=payload.terms,
+    )
+    res = InvoiceResponse.model_validate(invoice)
+    res.customer_name = invoice.customer.name if invoice.customer else None
+    return res
+
 

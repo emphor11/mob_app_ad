@@ -8,6 +8,8 @@ from app.db.base import UUIDModel
 if TYPE_CHECKING:
     from app.models.business import Business
     from app.models.quotation import Quotation
+    from app.models.invoice import Invoice
+
 
 
 class Customer(UUIDModel):
@@ -63,4 +65,9 @@ class Customer(UUIDModel):
         "Quotation",
         back_populates="customer",
     )
+    invoices: Mapped[list["Invoice"]] = relationship(
+        "Invoice",
+        back_populates="customer",
+    )
+
 
