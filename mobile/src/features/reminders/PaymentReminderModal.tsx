@@ -15,6 +15,7 @@ import { Colors } from '@/constants/theme';
 import {
   Invoice,
   OutstandingInvoiceItem,
+  DashboardOverdueInvoice,
   ReminderTemplate,
   InvoiceReminder,
 } from '@/types';
@@ -24,7 +25,7 @@ type ToneOption = 'STANDARD' | 'GENTLE' | 'URGENT';
 
 interface Props {
   visible: boolean;
-  invoice: Invoice | OutstandingInvoiceItem | null;
+  invoice: Invoice | OutstandingInvoiceItem | DashboardOverdueInvoice | null;
   customerPhone?: string;
   customerName?: string;
   onClose: () => void;
@@ -77,6 +78,8 @@ export function PaymentReminderModal({
         const balance =
           'outstandingBalance' in invoice
             ? invoice.outstandingBalance
+            : 'remainingAmount' in invoice
+            ? invoice.remainingAmount
             : Math.max(0, invoice.total - invoice.paidAmount);
         const formatted = balance.toLocaleString('en-IN', {
           minimumFractionDigits: 0,
@@ -109,6 +112,8 @@ export function PaymentReminderModal({
   const balanceDue =
     'outstandingBalance' in invoice
       ? invoice.outstandingBalance
+      : 'remainingAmount' in invoice
+      ? invoice.remainingAmount
       : Math.max(0, invoice.total - invoice.paidAmount);
 
   const handleToneChange = (tone: ToneOption) => {

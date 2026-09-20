@@ -14,11 +14,15 @@ export const MOCK_BUSINESS: Business = {
 export const MOCK_METRICS: DashboardMetrics = {
   totalSales: 184500,
   totalCollected: 142000,
+  outstanding: 42500,
+  overdue: 12000,
+  customersCount: 18,
+  quotationsCount: 5,
+  invoicesCount: 4,
   outstandingBalance: 42500,
   overdueAmount: 12000,
   activeQuotationsCount: 5,
   pendingInvoicesCount: 4,
-  customersCount: 18,
 };
 
 export const MOCK_CUSTOMERS: Customer[] = [

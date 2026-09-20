@@ -169,11 +169,77 @@ export interface Payment {
 export interface DashboardMetrics {
   totalSales: number;
   totalCollected: number;
-  outstandingBalance: number;
-  overdueAmount: number;
-  activeQuotationsCount: number;
-  pendingInvoicesCount: number;
+  outstanding: number;
+  overdue: number;
   customersCount: number;
+  quotationsCount: number;
+  invoicesCount: number;
+  // Compatibility fields
+  outstandingBalance?: number;
+  overdueAmount?: number;
+  activeQuotationsCount?: number;
+  pendingInvoicesCount?: number;
+}
+
+export interface DashboardRecentQuotation {
+  id: string;
+  quotationNumber: string;
+  customerId: string;
+  customerName: string;
+  total: number;
+  status: QuotationStatus;
+  issueDate: string;
+  validUntil: string;
+  createdAt: string;
+}
+
+export interface DashboardRecentInvoice {
+  id: string;
+  invoiceNumber: string;
+  customerId: string;
+  customerName: string;
+  total: number;
+  paidAmount: number;
+  remainingAmount: number;
+  status: InvoiceStatus;
+  issueDate: string;
+  dueDate: string;
+  createdAt: string;
+}
+
+export interface DashboardRecentPayment {
+  id: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  customerName: string;
+  amount: number;
+  method: PaymentMethod;
+  paymentDate: string;
+  createdAt: string;
+}
+
+export interface DashboardOverdueInvoice {
+  id: string;
+  invoiceNumber: string;
+  customerId: string;
+  customerName: string;
+  customerPhone?: string;
+  total: number;
+  paidAmount: number;
+  remainingAmount: number;
+  dueDate: string;
+  daysOverdue: number;
+}
+
+export interface DashboardData {
+  businessId: string;
+  businessName: string;
+  ownerName: string;
+  metrics: DashboardMetrics;
+  recentQuotations: DashboardRecentQuotation[];
+  recentInvoices: DashboardRecentInvoice[];
+  recentPayments: DashboardRecentPayment[];
+  overdueInvoices: DashboardOverdueInvoice[];
 }
 
 export type PaymentCategoryFilter = 'ALL' | 'PENDING' | 'OVERDUE' | 'PAID';
