@@ -5,6 +5,7 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.invoice import InvoiceStatus
+from app.schemas.payment import PaymentResponse
 
 
 # -------------------------------------------------------------
@@ -51,6 +52,7 @@ class InvoiceResponse(InvoiceBase):
     invoice_number: str
     customer_name: Optional[str] = None
     items: List[InvoiceItemResponse] = []
+    payments: List[PaymentResponse] = []
     created_at: datetime
     updated_at: datetime
 

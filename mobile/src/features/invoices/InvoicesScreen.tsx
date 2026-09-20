@@ -19,9 +19,10 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Header } from '@/components/Header';
 import { StatusBadge } from '@/components/StatusBadge';
-import { Invoice, InvoiceStatus } from '@/types';
+import { Invoice, InvoiceStatus, Payment } from '@/types';
 import { InvoiceService } from '@/services/invoice';
 import { InvoiceDetailModal } from './InvoiceDetailModal';
+import { RecordPaymentModal } from '@/features/payments/RecordPaymentModal';
 import { MOCK_INVOICES } from '@/constants/mockData';
 
 const FILTER_TABS: (InvoiceStatus | 'ALL')[] = [
@@ -41,6 +42,8 @@ export function InvoicesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [invoiceToPay, setInvoiceToPay] = useState<Invoice | null>(null);
+  const [recordPaymentVisible, setRecordPaymentVisible] = useState(false);
 
   const loadInvoices = useCallback(
     (filter: InvoiceStatus | 'ALL', search?: string) => {
@@ -80,6 +83,20 @@ export function InvoicesScreen() {
   const handleInvoiceUpdated = (updated: Invoice) => {
     setSelectedInvoice(updated);
     setInvoices((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+  };
+
+  const handleOpenRecordPayment = (inv: Invoice) => {
+    setInvoiceToPay(inv);
+    setRecordPaymentVisible(true);
+  };
+
+  const handlePaymentRecorded = (_newPayment: Payment, updatedInvoice: Invoice) => {
+    setInvoices((prev) =>
+      prev.map((i) => (i.id === updatedInvoice.id ? updatedInvoice : i))
+    );
+    if (selectedInvoice && selectedInvoice.id === updatedInvoice.id) {
+      setSelectedInvoice(updatedInvoice);
+    }
   };
 
   const handleCreateInvoice = () => {
@@ -236,13 +253,24 @@ export function InvoicesScreen() {
 
                     <View style={styles.cardActions}>
                       <Button
-                        title="View / Share"
+                        title="View"
                         variant="outline"
                         size="small"
                         icon={<Ionicons name="document-text-outline" size={15} color={Colors.light.primary} />}
                         onPress={() => handleOpenDetail(item)}
                         style={styles.actionBtn}
                       />
+
+                      {remaining > 0 && item.status !== 'CANCELLED' && (
+                        <Button
+                          title="Record Payment"
+                          variant="primary"
+                          size="small"
+                          icon={<Ionicons name="card-outline" size={15} color="#FFFFFF" />}
+                          onPress={() => handleOpenRecordPayment(item)}
+                          style={styles.actionBtn}
+                        />
+                      )}
 
                       {remaining > 0 && item.status !== 'CANCELLED' && (
                         <Button
@@ -276,6 +304,17 @@ export function InvoicesScreen() {
         invoice={selectedInvoice}
         onClose={() => setDetailModalVisible(false)}
         onUpdated={handleInvoiceUpdated}
+      />
+
+      {/* Direct Record Payment Modal */}
+      <RecordPaymentModal
+        visible={recordPaymentVisible}
+        invoice={invoiceToPay}
+        onClose={() => {
+          setRecordPaymentVisible(false);
+          setInvoiceToPay(null);
+        }}
+        onPaymentRecorded={handlePaymentRecorded}
       />
     </SafeAreaView>
   );

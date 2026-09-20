@@ -9,8 +9,11 @@ from app.dependencies.business import get_current_business
 from app.models.business import Business
 from app.models.customer import Customer
 from app.models.invoice import Invoice, InvoiceStatus
+from app.models.payment import Payment
 from app.schemas.invoice import InvoiceResponse, InvoiceUpdate
+from app.schemas.payment import PaymentCreate, PaymentResponse
 from app.services.pdf_generator import generate_invoice_pdf
+from app.services.payment_service import record_invoice_payment
 
 
 router = APIRouter()
@@ -173,4 +176,78 @@ def update_invoice(
     res = InvoiceResponse.model_validate(invoice)
     res.customer_name = invoice.customer.name if invoice.customer else None
     return res
+
+
+@router.post(
+    "/{invoice_id}/payments",
+    response_model=PaymentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Record a payment against an invoice",
+)
+def create_invoice_payment(
+    invoice_id: uuid.UUID,
+    payload: PaymentCreate,
+    current_business: Business = Depends(get_current_business),
+    db: Session = Depends(get_db),
+):
+    """
+    Record payment against an invoice.
+    Enforces overpayment prevention and automatically updates invoice status (UNPAID -> PARTIALLY_PAID -> PAID).
+    Strictly scoped to current business.
+    """
+    payment = record_invoice_payment(
+        db=db,
+        business_id=current_business.id,
+        invoice_id=invoice_id,
+        payload=payload,
+    )
+    res = PaymentResponse.model_validate(payment)
+    res.invoice_number = payment.invoice.invoice_number if payment.invoice else None
+    res.customer_name = payment.invoice.customer.name if (payment.invoice and payment.invoice.customer) else None
+    return res
+
+
+@router.get(
+    "/{invoice_id}/payments",
+    response_model=List[PaymentResponse],
+    summary="List payments for an invoice",
+)
+def get_invoice_payments(
+    invoice_id: uuid.UUID,
+    current_business: Business = Depends(get_current_business),
+    db: Session = Depends(get_db),
+):
+    """
+    List all payments recorded against a specific invoice.
+    Strictly scoped to current business.
+    """
+    stmt_inv = select(Invoice).where(
+        Invoice.id == invoice_id,
+        Invoice.business_id == current_business.id,
+    )
+    invoice = db.scalars(stmt_inv).first()
+    if not invoice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invoice not found.",
+        )
+
+    stmt = (
+        select(Payment)
+        .where(
+            Payment.invoice_id == invoice_id,
+            Payment.business_id == current_business.id,
+        )
+        .order_by(Payment.payment_date.desc(), Payment.created_at.desc())
+    )
+    payments = list(db.scalars(stmt).all())
+
+    result = []
+    for p in payments:
+        res = PaymentResponse.model_validate(p)
+        res.invoice_number = invoice.invoice_number
+        res.customer_name = invoice.customer.name if invoice.customer else None
+        result.append(res)
+    return result
+
 

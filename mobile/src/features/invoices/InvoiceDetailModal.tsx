@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { Button } from '@/components/Button';
 import { StatusBadge } from '@/components/StatusBadge';
-import { Invoice, InvoiceStatus, Business, Customer } from '@/types';
+import { Invoice, InvoiceStatus, Business, Customer, Payment } from '@/types';
 import { InvoiceService } from '@/services/invoice';
 import { BusinessService } from '@/services/business';
 import { CustomerService } from '@/services/customer';
 import { InvoicePdfService } from '@/services/invoicePdf';
+import { PaymentService } from '@/services/payment';
+import { RecordPaymentModal } from '@/features/payments/RecordPaymentModal';
 
 interface Props {
   visible: boolean;
@@ -31,8 +33,10 @@ export function InvoiceDetailModal({ visible, invoice, onClose, onUpdated }: Pro
   const [printing, setPrinting] = useState(false);
   const [business, setBusiness] = useState<Business | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [recordPaymentVisible, setRecordPaymentVisible] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible && invoice) {
       BusinessService.getMyBusiness()
         .then((b) => setBusiness(b))
@@ -43,6 +47,11 @@ export function InvoiceDetailModal({ visible, invoice, onClose, onUpdated }: Pro
           .then((c) => setCustomer(c))
           .catch(() => {});
       }
+
+      // Fetch payment history for this invoice
+      PaymentService.getInvoicePayments(invoice.id)
+        .then((p) => setPayments(p))
+        .catch(() => setPayments([]));
     }
   }, [visible, invoice]);
 
@@ -102,229 +111,292 @@ export function InvoiceDetailModal({ visible, invoice, onClose, onUpdated }: Pro
     );
   };
 
-  const confirmMarkPaid = () => {
-    Alert.alert(
-      'Mark as Paid',
-      `Mark entire invoice ${invoice.invoiceNumber} as fully paid?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm Paid',
-          onPress: () => handleUpdateStatus('PAID'),
-        },
-      ]
-    );
+  const handlePaymentRecorded = (newPayment: Payment, updatedInvoice: Invoice) => {
+    setPayments((prev) => [newPayment, ...prev]);
+    onUpdated(updatedInvoice);
+  };
+
+  const getMethodIcon = (method: Payment['method']) => {
+    switch (method) {
+      case 'UPI':
+        return 'phone-portrait-outline';
+      case 'BANK_TRANSFER':
+        return 'business-outline';
+      case 'CASH':
+        return 'cash-outline';
+      case 'CARD':
+        return 'card-outline';
+      default:
+        return 'ellipsis-horizontal-circle-outline';
+    }
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          {/* Header */}
-          <View style={styles.modalHeader}>
-            <View>
-              <Text style={styles.modalTitle}>{invoice.invoiceNumber}</Text>
-              <Text style={styles.modalSubtitle}>{invoice.customerName}</Text>
-            </View>
-            <View style={styles.headerRight}>
-              <StatusBadge status={invoice.status} />
-              <TouchableOpacity onPress={onClose} style={{ marginLeft: 12 }}>
-                <Ionicons name="close" size={24} color={Colors.light.textSecondary} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            {/* Meta Details */}
-            <View style={styles.metaRow}>
-              <View style={styles.metaCol}>
-                <Text style={styles.metaLabel}>Issue Date</Text>
-                <Text style={styles.metaValue}>{invoice.issueDate}</Text>
+    <>
+      <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>{invoice.invoiceNumber}</Text>
+                <Text style={styles.modalSubtitle}>{invoice.customerName}</Text>
               </View>
-              <View style={styles.metaCol}>
-                <Text style={styles.metaLabel}>Due Date</Text>
-                <Text style={[styles.metaValue, invoice.status === 'OVERDUE' && styles.overdueValue]}>
-                  {invoice.dueDate}
-                </Text>
+              <View style={styles.headerRight}>
+                <StatusBadge status={invoice.status} />
+                <TouchableOpacity onPress={onClose} style={{ marginLeft: 12 }}>
+                  <Ionicons name="close" size={24} color={Colors.light.textSecondary} />
+                </TouchableOpacity>
               </View>
             </View>
 
-            {/* Financial Status Section */}
-            <View style={styles.balanceSection}>
-              <View style={styles.balanceCol}>
-                <Text style={styles.balanceLabel}>Total Invoice</Text>
-                <Text style={styles.balanceTotal}>
-                  ₹{invoice.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </Text>
-              </View>
-
-              <View style={styles.balanceCol}>
-                <Text style={styles.balanceLabel}>Paid Amount</Text>
-                <Text style={styles.balancePaid}>
-                  ₹{invoice.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </Text>
-              </View>
-
-              <View style={styles.balanceCol}>
-                <Text style={styles.balanceLabel}>Balance Due</Text>
-                <Text
-                  style={[
-                    styles.balanceRemaining,
-                    balanceDue > 0 ? styles.dueText : styles.paidText,
-                  ]}>
-                  ₹{balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </Text>
-              </View>
-            </View>
-
-            {/* Line Items Table */}
-            <Text style={styles.sectionHeader}>Invoice Line Items</Text>
-            <View style={styles.itemsTable}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.thText, { flex: 2 }]}>Description</Text>
-                <Text style={[styles.thText, { flex: 0.8, textAlign: 'center' }]}>Qty</Text>
-                <Text style={[styles.thText, { flex: 1.2, textAlign: 'right' }]}>Price</Text>
-                <Text style={[styles.thText, { flex: 1.2, textAlign: 'right' }]}>Total</Text>
-              </View>
-
-              {invoice.items && invoice.items.length > 0 ? (
-                invoice.items.map((item, idx) => (
-                  <View key={item.id || idx} style={styles.tableRow}>
-                    <View style={{ flex: 2 }}>
-                      <Text style={styles.itemDesc}>{item.description}</Text>
-                      {item.taxRate > 0 && (
-                        <Text style={styles.itemTaxRate}>GST: {item.taxRate}%</Text>
-                      )}
-                    </View>
-                    <Text style={[styles.tdText, { flex: 0.8, textAlign: 'center' }]}>
-                      {item.quantity}
-                    </Text>
-                    <Text style={[styles.tdText, { flex: 1.2, textAlign: 'right' }]}>
-                      ₹{item.unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.tdText,
-                        { flex: 1.2, textAlign: 'right', fontWeight: '700' },
-                      ]}>
-                      ₹{item.lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </Text>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.noItemsText}>No line items specified.</Text>
-              )}
-            </View>
-
-            {/* Financial Summary Breakdown */}
-            <View style={styles.summaryBox}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Taxable Subtotal</Text>
-                <Text style={styles.summaryValue}>
-                  ₹{invoice.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </Text>
-              </View>
-
-              {invoice.discount > 0 && (
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Trade Discount</Text>
-                  <Text style={[styles.summaryValue, { color: Colors.light.danger }]}>
-                    -₹{invoice.discount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            <ScrollView contentContainerStyle={styles.scrollContent}>
+              {/* Meta Details */}
+              <View style={styles.metaRow}>
+                <View style={styles.metaCol}>
+                  <Text style={styles.metaLabel}>Issue Date</Text>
+                  <Text style={styles.metaValue}>{invoice.issueDate}</Text>
+                </View>
+                <View style={styles.metaCol}>
+                  <Text style={styles.metaLabel}>Due Date</Text>
+                  <Text style={[styles.metaValue, invoice.status === 'OVERDUE' && styles.overdueValue]}>
+                    {invoice.dueDate}
                   </Text>
                 </View>
-              )}
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>GST Output Tax</Text>
-                <Text style={styles.summaryValue}>
-                  +₹{invoice.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </Text>
               </View>
 
-              <View style={[styles.summaryRow, styles.grandTotalRow]}>
-                <Text style={styles.grandTotalLabel}>Total Amount</Text>
-                <Text style={styles.grandTotalValue}>
-                  ₹{invoice.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </Text>
-              </View>
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Paid to Date</Text>
-                <Text style={[styles.summaryValue, { color: Colors.light.success }]}>
-                  ₹{invoice.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </Text>
-              </View>
-
-              <View style={[styles.summaryRow, styles.balanceDueRow]}>
-                <Text style={styles.balanceDueLabel}>Balance Due</Text>
-                <Text style={styles.balanceDueValue}>
-                  ₹{balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </Text>
-              </View>
-            </View>
-
-            {/* Notes & Terms */}
-            {invoice.notes ? (
-              <View style={styles.infoBlock}>
-                <Text style={styles.infoBlockLabel}>Notes</Text>
-                <Text style={styles.infoBlockText}>{invoice.notes}</Text>
-              </View>
-            ) : null}
-
-            {invoice.terms ? (
-              <View style={styles.infoBlock}>
-                <Text style={styles.infoBlockLabel}>Terms & Conditions</Text>
-                <Text style={styles.infoBlockText}>{invoice.terms}</Text>
-              </View>
-            ) : null}
-
-            {/* Document Sharing & PDF Section */}
-            <View style={styles.shareSection}>
-              <Text style={styles.sectionHeader}>Share & Export Invoice</Text>
-
-              <Button
-                title="Share Invoice PDF (WhatsApp / Email)"
-                variant="primary"
-                loading={sharingPdf}
-                icon={<Ionicons name="share-social-outline" size={18} color="#FFFFFF" />}
-                onPress={handleSharePdf}
-                style={styles.primaryShareButton}
-              />
-
-              <View style={styles.shareOptionsRow}>
-                <TouchableOpacity
-                  style={[styles.quickShareBtn, styles.whatsAppBtn]}
-                  onPress={handleWhatsAppShare}
-                  activeOpacity={0.8}>
-                  <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
-                  <Text style={styles.quickShareBtnText}>WhatsApp Text</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.quickShareBtn, styles.printBtn]}
-                  onPress={handlePrintPdf}
-                  activeOpacity={0.8}>
-                  <Ionicons name="print-outline" size={18} color={Colors.light.text} />
-                  <Text style={[styles.quickShareBtnText, { color: Colors.light.text }]}>
-                    {printing ? 'Preparing...' : 'Print / Preview'}
+              {/* Financial Status Section */}
+              <View style={styles.balanceSection}>
+                <View style={styles.balanceCol}>
+                  <Text style={styles.balanceLabel}>Total Invoice</Text>
+                  <Text style={styles.balanceTotal}>
+                    ₹{invoice.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </Text>
-                </TouchableOpacity>
+                </View>
+
+                <View style={styles.balanceCol}>
+                  <Text style={styles.balanceLabel}>Paid Amount</Text>
+                  <Text style={styles.balancePaid}>
+                    ₹{invoice.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+
+                <View style={styles.balanceCol}>
+                  <Text style={styles.balanceLabel}>Balance Due</Text>
+                  <Text
+                    style={[
+                      styles.balanceRemaining,
+                      balanceDue > 0 ? styles.dueText : styles.paidText,
+                    ]}>
+                    ₹{balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
               </View>
-            </View>
 
-            {/* Invoice Management Actions */}
-            <View style={styles.actionSection}>
-              <Text style={styles.sectionHeader}>Invoice Actions</Text>
+              {/* Line Items Table */}
+              <Text style={styles.sectionHeader}>Invoice Line Items</Text>
+              <View style={styles.itemsTable}>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.thText, { flex: 2 }]}>Description</Text>
+                  <Text style={[styles.thText, { flex: 0.8, textAlign: 'center' }]}>Qty</Text>
+                  <Text style={[styles.thText, { flex: 1.2, textAlign: 'right' }]}>Price</Text>
+                  <Text style={[styles.thText, { flex: 1.2, textAlign: 'right' }]}>Total</Text>
+                </View>
 
-              {invoice.status !== 'PAID' && invoice.status !== 'CANCELLED' && (
-                <View style={{ gap: 8 }}>
+                {invoice.items && invoice.items.length > 0 ? (
+                  invoice.items.map((item, idx) => (
+                    <View key={item.id || idx} style={styles.tableRow}>
+                      <View style={{ flex: 2 }}>
+                        <Text style={styles.itemDesc}>{item.description}</Text>
+                        {item.taxRate > 0 && (
+                          <Text style={styles.itemTaxRate}>GST: {item.taxRate}%</Text>
+                        )}
+                      </View>
+                      <Text style={[styles.tdText, { flex: 0.8, textAlign: 'center' }]}>
+                        {item.quantity}
+                      </Text>
+                      <Text style={[styles.tdText, { flex: 1.2, textAlign: 'right' }]}>
+                        ₹{item.unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.tdText,
+                          { flex: 1.2, textAlign: 'right', fontWeight: '700' },
+                        ]}>
+                        ₹{item.lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.noItemsText}>No line items specified.</Text>
+                )}
+              </View>
+
+              {/* Financial Summary Breakdown */}
+              <View style={styles.summaryBox}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Taxable Subtotal</Text>
+                  <Text style={styles.summaryValue}>
+                    ₹{invoice.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+
+                {invoice.discount > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Trade Discount</Text>
+                    <Text style={[styles.summaryValue, { color: Colors.light.danger }]}>
+                      -₹{invoice.discount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>GST Output Tax</Text>
+                  <Text style={styles.summaryValue}>
+                    +₹{invoice.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+
+                <View style={[styles.summaryRow, styles.grandTotalRow]}>
+                  <Text style={styles.grandTotalLabel}>Total Amount</Text>
+                  <Text style={styles.grandTotalValue}>
+                    ₹{invoice.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Paid to Date</Text>
+                  <Text style={[styles.summaryValue, { color: Colors.light.success }]}>
+                    ₹{invoice.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+
+                <View style={[styles.summaryRow, styles.balanceDueRow]}>
+                  <Text style={styles.balanceDueLabel}>Balance Due</Text>
+                  <Text style={styles.balanceDueValue}>
+                    ₹{balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Payment History Section */}
+              <View style={styles.paymentHistorySection}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeader}>Payment History ({payments.length})</Text>
+                  {balanceDue > 0 && invoice.status !== 'CANCELLED' && (
+                    <TouchableOpacity
+                      onPress={() => setRecordPaymentVisible(true)}
+                      style={styles.addPaymentHeaderBtn}>
+                      <Ionicons name="add-circle-outline" size={16} color={Colors.light.primary} />
+                      <Text style={styles.addPaymentHeaderText}>Record Payment</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {payments.length > 0 ? (
+                  <View style={styles.paymentsList}>
+                    {payments.map((p) => (
+                      <View key={p.id} style={styles.paymentHistoryItem}>
+                        <View style={styles.paymentItemLeft}>
+                          <View style={styles.paymentMethodIconBox}>
+                            <Ionicons
+                              name={getMethodIcon(p.method) as any}
+                              size={16}
+                              color={Colors.light.primary}
+                            />
+                          </View>
+                          <View>
+                            <Text style={styles.paymentMethodText}>
+                              {p.method.replace('_', ' ')}
+                            </Text>
+                            <Text style={styles.paymentDateText}>
+                              {p.paymentDate}
+                              {p.reference ? ` • Ref: ${p.reference}` : ''}
+                            </Text>
+                            {p.notes ? (
+                              <Text style={styles.paymentNotesText}>{p.notes}</Text>
+                            ) : null}
+                          </View>
+                        </View>
+                        <Text style={styles.paymentAmountText}>
+                          +₹{p.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.emptyPaymentsBox}>
+                    <Text style={styles.emptyPaymentsText}>
+                      No payments recorded yet for this invoice.
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Notes & Terms */}
+              {invoice.notes ? (
+                <View style={styles.infoBlock}>
+                  <Text style={styles.infoBlockLabel}>Notes</Text>
+                  <Text style={styles.infoBlockText}>{invoice.notes}</Text>
+                </View>
+              ) : null}
+
+              {invoice.terms ? (
+                <View style={styles.infoBlock}>
+                  <Text style={styles.infoBlockLabel}>Terms & Conditions</Text>
+                  <Text style={styles.infoBlockText}>{invoice.terms}</Text>
+                </View>
+              ) : null}
+
+              {/* Document Sharing & PDF Section */}
+              <View style={styles.shareSection}>
+                <Text style={styles.sectionHeader}>Share & Export Invoice</Text>
+
+                <Button
+                  title="Share Invoice PDF (WhatsApp / Email)"
+                  variant="primary"
+                  loading={sharingPdf}
+                  icon={<Ionicons name="share-social-outline" size={18} color="#FFFFFF" />}
+                  onPress={handleSharePdf}
+                  style={styles.primaryShareButton}
+                />
+
+                <View style={styles.shareOptionsRow}>
+                  <TouchableOpacity
+                    style={[styles.quickShareBtn, styles.whatsAppBtn]}
+                    onPress={handleWhatsAppShare}
+                    activeOpacity={0.8}>
+                    <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
+                    <Text style={styles.quickShareBtnText}>WhatsApp Text</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.quickShareBtn, styles.printBtn]}
+                    onPress={handlePrintPdf}
+                    activeOpacity={0.8}>
+                    <Ionicons name="print-outline" size={18} color={Colors.light.text} />
+                    <Text style={[styles.quickShareBtnText, { color: Colors.light.text }]}>
+                      {printing ? 'Preparing...' : 'Print / Preview'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Invoice Management Actions */}
+              <View style={styles.actionSection}>
+                <Text style={styles.sectionHeader}>Invoice Actions</Text>
+
+                {balanceDue > 0 && invoice.status !== 'CANCELLED' && (
                   <Button
-                    title="Mark as Fully Paid"
+                    title="Record Payment"
                     variant="primary"
-                    loading={updating}
-                    icon={<Ionicons name="checkmark-done-outline" size={16} color="#FFFFFF" />}
-                    onPress={confirmMarkPaid}
+                    icon={<Ionicons name="card-outline" size={16} color="#FFFFFF" />}
+                    onPress={() => setRecordPaymentVisible(true)}
+                    style={{ marginBottom: 8 }}
                   />
+                )}
+
+                {invoice.status !== 'CANCELLED' && (
                   <Button
                     title="Cancel Invoice"
                     variant="outline"
@@ -332,31 +404,39 @@ export function InvoiceDetailModal({ visible, invoice, onClose, onUpdated }: Pro
                     icon={<Ionicons name="close-circle-outline" size={16} color={Colors.light.danger} />}
                     onPress={confirmCancelInvoice}
                   />
-                </View>
-              )}
+                )}
 
-              {invoice.status === 'PAID' && (
-                <View style={styles.statusBannerSuccess}>
-                  <Ionicons name="checkmark-circle" size={20} color={Colors.light.success} />
-                  <Text style={styles.statusBannerSuccessText}>
-                    Invoice is fully paid and settled.
-                  </Text>
-                </View>
-              )}
+                {invoice.status === 'PAID' && (
+                  <View style={styles.statusBannerSuccess}>
+                    <Ionicons name="checkmark-circle" size={20} color={Colors.light.success} />
+                    <Text style={styles.statusBannerSuccessText}>
+                      Invoice is fully paid and settled.
+                    </Text>
+                  </View>
+                )}
 
-              {invoice.status === 'CANCELLED' && (
-                <View style={styles.statusBannerCancelled}>
-                  <Ionicons name="alert-circle-outline" size={20} color={Colors.light.danger} />
-                  <Text style={styles.statusBannerCancelledText}>
-                    This invoice was cancelled.
-                  </Text>
-                </View>
-              )}
-            </View>
-          </ScrollView>
+                {invoice.status === 'CANCELLED' && (
+                  <View style={styles.statusBannerCancelled}>
+                    <Ionicons name="alert-circle-outline" size={20} color={Colors.light.danger} />
+                    <Text style={styles.statusBannerCancelledText}>
+                      This invoice was cancelled.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+          </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+
+      {/* Record Payment Modal */}
+      <RecordPaymentModal
+        visible={recordPaymentVisible}
+        invoice={invoice}
+        onClose={() => setRecordPaymentVisible(false)}
+        onPaymentRecorded={handlePaymentRecorded}
+      />
+    </>
   );
 }
 
@@ -470,6 +550,22 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  addPaymentHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  addPaymentHeaderText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
   itemsTable: {
     backgroundColor: Colors.light.card,
     borderRadius: 8,
@@ -578,6 +674,71 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.light.danger,
   },
+  paymentHistorySection: {
+    marginBottom: 16,
+  },
+  paymentsList: {
+    backgroundColor: Colors.light.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    overflow: 'hidden',
+  },
+  paymentHistoryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  paymentItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  paymentMethodIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.light.backgroundElement,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paymentMethodText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  paymentDateText: {
+    fontSize: 11,
+    color: Colors.light.textMuted,
+    marginTop: 1,
+  },
+  paymentNotesText: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  paymentAmountText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.light.success,
+  },
+  emptyPaymentsBox: {
+    backgroundColor: Colors.light.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: 16,
+    alignItems: 'center',
+  },
+  emptyPaymentsText: {
+    fontSize: 12,
+    color: Colors.light.textMuted,
+  },
   infoBlock: {
     backgroundColor: Colors.light.card,
     borderRadius: 8,
@@ -643,6 +804,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     gap: 8,
+    marginTop: 8,
   },
   statusBannerSuccessText: {
     fontSize: 13,
@@ -658,6 +820,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     gap: 8,
+    marginTop: 8,
   },
   statusBannerCancelledText: {
     fontSize: 13,

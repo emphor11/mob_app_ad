@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.business import Business
     from app.models.customer import Customer
     from app.models.quotation import Quotation
+    from app.models.payment import Payment
 
 
 class InvoiceStatus(str, enum.Enum):
@@ -125,6 +126,12 @@ class Invoice(UUIDModel):
         back_populates="invoice",
         cascade="all, delete-orphan",
         order_by="InvoiceItem.created_at.asc()",
+    )
+    payments: Mapped[list["Payment"]] = relationship(
+        "Payment",
+        back_populates="invoice",
+        cascade="all, delete-orphan",
+        order_by="Payment.payment_date.desc(), Payment.created_at.desc()",
     )
 
 
