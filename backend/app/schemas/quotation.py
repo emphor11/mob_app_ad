@@ -39,7 +39,6 @@ class QuotationItemResponse(QuotationItemBase):
 
 class QuotationBase(BaseModel):
     customer_id: uuid.UUID
-    quotation_number: str = Field(..., min_length=1, max_length=50, description="e.g. QT-2026-0001")
     issue_date: date
     valid_until: date
     discount: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"), description="Overall discount amount")
@@ -48,6 +47,7 @@ class QuotationBase(BaseModel):
 
 
 class QuotationCreate(QuotationBase):
+    quotation_number: Optional[str] = Field(None, max_length=50, description="Optional custom number; auto-generated if omitted")
     items: List[QuotationItemCreate] = Field(..., min_length=1, description="Line items for the quotation")
 
 
@@ -64,6 +64,8 @@ class QuotationUpdate(BaseModel):
 class QuotationResponse(QuotationBase):
     id: uuid.UUID
     business_id: uuid.UUID
+    quotation_number: str
+    customer_name: Optional[str] = None
     status: QuotationStatus
     subtotal: Decimal
     discount: Decimal

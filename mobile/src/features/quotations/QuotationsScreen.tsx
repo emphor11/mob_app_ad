@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,16 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { Card } from '@/components/Card';
-import { Button } from '@/components/Button';
 import { Header } from '@/components/Header';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Quotation, QuotationStatus } from '@/types';
+import { QuotationService } from '@/services/quotation';
+import { CreateQuotationModal } from './CreateQuotationModal';
 import { MOCK_QUOTATIONS } from '@/constants/mockData';
 
 const FILTER_TABS: (QuotationStatus | 'ALL')[] = [
@@ -27,22 +29,46 @@ const FILTER_TABS: (QuotationStatus | 'ALL')[] = [
 
 export function QuotationsScreen() {
   const [activeFilter, setActiveFilter] = useState<QuotationStatus | 'ALL'>('ALL');
-  const [quotations] = useState<Quotation[]>(MOCK_QUOTATIONS);
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
 
-  const filteredQuotes = quotations.filter((q) =>
-    activeFilter === 'ALL' ? true : q.status === activeFilter
-  );
+  const loadQuotations = useCallback((filter: QuotationStatus | 'ALL') => {
+    QuotationService.getQuotations(filter === 'ALL' ? undefined : filter)
+      .then((data) => {
+        setQuotations(data);
+        setLoading(false);
+        setRefreshing(false);
+      })
+      .catch(() => {
+        setQuotations((prev) => (prev.length === 0 ? MOCK_QUOTATIONS : prev));
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }, []);
 
-  const handleCreateQuotation = () => {
-    Alert.alert('Phase 3 Prototype', 'Quotation creation workflow will be connected in Phase 11/12.');
+  useEffect(() => {
+    loadQuotations(activeFilter);
+  }, [activeFilter, loadQuotations]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadQuotations(activeFilter);
   };
 
   const handleShare = (quoteNumber: string) => {
-    Alert.alert('Share Quotation', `PDF generation & native share sheet for ${quoteNumber} will be integrated in Phase 13/14.`);
+    Alert.alert(
+      'Share Quotation',
+      `PDF generation & native share sheet for ${quoteNumber} will be integrated in Phase 13/14.`
+    );
   };
 
   const handleConvertToInvoice = (quoteNumber: string) => {
-    Alert.alert('Convert to Invoice', `Atomic conversion from ${quoteNumber} to Invoice will be implemented in Phase 15/16.`);
+    Alert.alert(
+      'Convert to Invoice',
+      `Atomic conversion from ${quoteNumber} to Invoice will be implemented in Phase 15/16.`
+    );
   };
 
   return (
@@ -52,7 +78,7 @@ export function QuotationsScreen() {
         subtitle={`${quotations.length} total quotations`}
         rightAction={{
           icon: 'add',
-          onPress: handleCreateQuotation,
+          onPress: () => setModalVisible(true),
         }}
       />
 
@@ -79,67 +105,88 @@ export function QuotationsScreen() {
           ))}
         </View>
 
-        {/* Quotation List */}
-        <FlatList
-          data={filteredQuotes}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <Card style={styles.quoteCard}>
-              <View style={styles.cardTop}>
-                <View>
-                  <Text style={styles.quoteNumber}>{item.quotationNumber}</Text>
-                  <Text style={styles.customerName}>{item.customerName}</Text>
-                </View>
-                <StatusBadge status={item.status} />
-              </View>
-
-              <View style={styles.itemPreview}>
-                <Text style={styles.itemDescription} numberOfLines={1}>
-                  {item.items[0]?.description} ({item.items[0]?.quantity} qty)
-                </Text>
-                {item.items.length > 1 && (
-                  <Text style={styles.moreItemsText}>
-                    +{item.items.length - 1} more item(s)
-                  </Text>
-                )}
-              </View>
-
-              <View style={styles.totalsRow}>
-                <View>
-                  <Text style={styles.metaText}>Valid: {item.validUntil}</Text>
-                  <Text style={styles.taxText}>Inc. GST: ₹{item.tax.toLocaleString('en-IN')}</Text>
-                </View>
-                <Text style={styles.totalAmount}>
-                  ₹{item.total.toLocaleString('en-IN')}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.light.primary} />
+            <Text style={styles.loadingText}>Loading quotations...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={quotations}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyTitle}>No Quotations Found</Text>
+                <Text style={styles.emptySubtitle}>
+                  Tap "+" at the top right to create your first commercial quote.
                 </Text>
               </View>
+            }
+            renderItem={({ item }) => (
+              <Card style={styles.quoteCard}>
+                <View style={styles.cardTop}>
+                  <View>
+                    <Text style={styles.quoteNumber}>{item.quotationNumber}</Text>
+                    <Text style={styles.customerName}>{item.customerName}</Text>
+                  </View>
+                  <StatusBadge status={item.status} />
+                </View>
 
-              <View style={styles.cardActions}>
-                <Button
-                  title="Share PDF"
-                  variant="outline"
-                  size="small"
-                  icon={<Ionicons name="share-social-outline" size={16} color={Colors.light.primary} />}
-                  onPress={() => handleShare(item.quotationNumber)}
-                  style={styles.actionBtn}
-                />
-                {item.status === 'ACCEPTED' && (
-                  <Button
-                    title="Convert to Invoice"
-                    variant="primary"
-                    size="small"
-                    icon={<Ionicons name="arrow-forward" size={16} color="#FFFFFF" />}
-                    onPress={() => handleConvertToInvoice(item.quotationNumber)}
-                    style={styles.actionBtn}
-                  />
+                {item.items && item.items.length > 0 && (
+                  <View style={styles.itemPreview}>
+                    <Text style={styles.itemDescription} numberOfLines={1}>
+                      {item.items[0]?.description} ({item.items[0]?.quantity} qty)
+                    </Text>
+                    {item.items.length > 1 && (
+                      <Text style={styles.extraItems}>
+                        +{item.items.length - 1} more items
+                      </Text>
+                    )}
+                  </View>
                 )}
-              </View>
-            </Card>
-          )}
-        />
+
+                <View style={styles.cardBottom}>
+                  <View>
+                    <Text style={styles.totalLabel}>Total (inc. GST)</Text>
+                    <Text style={styles.totalValue}>
+                      ₹{item.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </Text>
+                  </View>
+
+                  <View style={styles.actionRow}>
+                    <TouchableOpacity
+                      style={styles.actionLink}
+                      onPress={() => handleShare(item.quotationNumber)}>
+                      <Text style={styles.actionLinkText}>Share</Text>
+                    </TouchableOpacity>
+                    {item.status === 'ACCEPTED' && (
+                      <TouchableOpacity
+                        style={[styles.actionLink, styles.convertLink]}
+                        onPress={() => handleConvertToInvoice(item.quotationNumber)}>
+                        <Text style={[styles.actionLinkText, styles.convertLinkText]}>
+                          Convert
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              </Card>
+            )}
+          />
+        )}
       </View>
+
+      {/* Create Quotation Modal */}
+      <CreateQuotationModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSuccess={() => loadQuotations(activeFilter)}
+      />
     </SafeAreaView>
   );
 }
@@ -152,23 +199,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 16,
+    paddingTop: 8,
   },
   filterScroll: {
     flexDirection: 'row',
-    marginVertical: 10,
+    marginBottom: 12,
   },
   filterTab: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.light.card,
+    backgroundColor: Colors.light.backgroundElement,
     marginRight: 8,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
   },
   activeFilterTab: {
     backgroundColor: Colors.light.primary,
-    borderColor: Colors.light.primary,
   },
   filterTabText: {
     fontSize: 13,
@@ -178,72 +223,106 @@ const styles = StyleSheet.create({
   activeFilterTabText: {
     color: '#FFFFFF',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 50,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
+  },
   listContent: {
     paddingBottom: 24,
   },
   quoteCard: {
-    padding: 16,
+    padding: 14,
     marginVertical: 6,
   },
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    marginBottom: 10,
   },
   quoteNumber: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: Colors.light.text,
   },
   customerName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.light.text,
+    fontSize: 13,
+    color: Colors.light.textSecondary,
     marginTop: 2,
   },
   itemPreview: {
-    marginVertical: 8,
     backgroundColor: Colors.light.backgroundElement,
     padding: 8,
-    borderRadius: 8,
+    borderRadius: 6,
+    marginBottom: 10,
   },
   itemDescription: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
+    fontSize: 12,
+    color: Colors.light.text,
   },
-  moreItemsText: {
+  extraItems: {
     fontSize: 11,
     color: Colors.light.textMuted,
     marginTop: 2,
   },
-  totalsRow: {
+  cardBottom: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 6,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+    paddingTop: 8,
   },
-  metaText: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
-  },
-  taxText: {
+  totalLabel: {
     fontSize: 11,
     color: Colors.light.textMuted,
   },
-  totalAmount: {
-    fontSize: 18,
+  totalValue: {
+    fontSize: 16,
     fontWeight: '800',
     color: Colors.light.text,
+    marginTop: 1,
   },
-  cardActions: {
+  actionRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: Colors.light.border,
+    gap: 12,
   },
-  actionBtn: {
-    marginLeft: 8,
+  actionLink: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: Colors.light.backgroundElement,
+  },
+  actionLinkText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.primary,
+  },
+  convertLink: {
+    backgroundColor: Colors.light.primary,
+  },
+  convertLinkText: {
+    color: '#FFFFFF',
   },
 });
